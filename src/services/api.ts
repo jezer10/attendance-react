@@ -7,12 +7,19 @@ import { authorizedFetch } from "./auth";
 type RawScheduleEntry = {
   enabled?: boolean;
   local_time?: string;
+  localTime?: string;
   utc_time?: string;
-  days?: string[];
+  utcTime?: string;
+  days?: Array<string | null>;
 };
 
 type RawInput = {
+  isActive?: boolean;
   is_active?: boolean;
+  randomWindowMinutes?: number;
+  random_window_minutes?: number;
+  phoneNumber?: string | null;
+  phone_number?: string | null;
   schedule?: {
     entry?: RawScheduleEntry;
     exit?: RawScheduleEntry;
@@ -22,20 +29,25 @@ type RawInput = {
     latitude?: number;
     longitude?: number;
     radius_meters?: number;
+    radiusMeters?: number;
   };
   timezone?: string;
 };
 
 type ParsedOutput = {
   activo: boolean;
+  ventana_aleatoria_minutos?: number | null;
+  telefono?: string | null;
   entrada: {
     habilitado: boolean;
     hora_local: string | null;
+    hora_utc: string | null;
     dias: string[];
   };
   salida: {
     habilitado: boolean;
     hora_local: string | null;
+    hora_utc: string | null;
     dias: string[];
   };
   ubicacion: {
@@ -47,6 +59,48 @@ type ParsedOutput = {
   zona_horaria: string | null;
 };
 
+const ISO_TO_DAY_KEY: Record<string, string> = {
+  monday: "Lun",
+  tuesday: "Mar",
+  wednesday: "Mie",
+  thursday: "Jue",
+  friday: "Vie",
+  saturday: "Sab",
+  sunday: "Dom",
+};
+
+const normalizePhoneNumber = (value?: string | null) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return null;
+
+  const withoutCountry = digits.startsWith("51") ? digits.slice(2) : digits;
+  if (withoutCountry.length === 8 || withoutCountry.length === 9) {
+    return `+51${withoutCountry}`;
+  }
+
+  return trimmed;
+};
+
+const normalizeTime = (value?: string) => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) return trimmed;
+  return `${match[1]}:${match[2]}`;
+};
+
+const normalizeDays = (days?: Array<string | null>) => {
+  if (!Array.isArray(days)) return [];
+  const mapped = days
+    .filter((day): day is string => typeof day === "string" && day.trim() !== "")
+    .map((day) => ISO_TO_DAY_KEY[day] ?? day);
+  return Array.from(new Set(mapped));
+};
+
 function _parseRule(data: RawInput): ParsedOutput {
   const entry = data.schedule?.entry ?? {};
   const exit = data.schedule?.exit ?? {};
@@ -55,37 +109,46 @@ function _parseRule(data: RawInput): ParsedOutput {
   // normalizar entrada
   const normalizedEntry = {
     habilitado: entry.enabled ?? false,
-    hora_local: entry.local_time ?? null,
-    dias: Array.isArray(entry.days) ? entry.days : [],
+    hora_local: normalizeTime(entry.localTime ?? entry.local_time) ?? null,
+    hora_utc: normalizeTime(entry.utcTime ?? entry.utc_time) ?? null,
+    dias: normalizeDays(entry.days),
   };
 
   // normalizar salida
   const normalizedExit = {
     habilitado: exit.enabled ?? false,
-    hora_local: exit.local_time ?? null,
-    dias: Array.isArray(exit.days) ? exit.days : [],
+    hora_local: normalizeTime(exit.localTime ?? exit.local_time) ?? null,
+    hora_utc: normalizeTime(exit.utcTime ?? exit.utc_time) ?? null,
+    dias: normalizeDays(exit.days),
   };
 
   const address =
     typeof location.address === "string" ? location.address.trim() : null;
+  const radiusMeters =
+    location.radiusMeters ?? location.radius_meters ?? null;
 
   return {
-    activo: data.is_active ?? false,
+    activo: data.isActive ?? data.is_active ?? false,
+    ventana_aleatoria_minutos:
+      data.randomWindowMinutes ?? data.random_window_minutes ?? null,
+    telefono: normalizePhoneNumber(data.phoneNumber ?? data.phone_number) ?? null,
     entrada: {
       habilitado: normalizedEntry.habilitado,
       hora_local: normalizedEntry.hora_local,
+      hora_utc: normalizedEntry.hora_utc,
       dias: normalizedEntry.dias,
     },
     salida: {
       habilitado: normalizedExit.habilitado,
       hora_local: normalizedExit.hora_local,
+      hora_utc: normalizedExit.hora_utc,
       dias: normalizedExit.dias,
     },
     ubicacion: {
       direccion: address,
       lat: location.latitude ?? null,
       lng: location.longitude ?? null,
-      radio_metros: location.radius_meters ?? null,
+      radio_metros: radiusMeters,
     },
     zona_horaria: data.timezone ?? null,
   };
@@ -103,6 +166,8 @@ const fallbackTimezones = [
 
 const fallbackAutomationRule: AutomationRule = {
   activo: true,
+  ventana_aleatoria_minutos: 10,
+  telefono: null,
   entrada: {
     habilitado: true,
     hora_local: "08:05",
@@ -186,7 +251,6 @@ export const saveAutomationRule = async (
 export const markAutomationNow = async (action: "entrada" | "salida") => {
   if (!API_BASE) {
     await new Promise((resolve) => setTimeout(resolve, 400));
-    // eslint-disable-next-line no-console
     console.info("Marcación manual (mock)", action);
     return;
   }

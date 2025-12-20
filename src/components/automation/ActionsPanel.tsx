@@ -9,6 +9,7 @@ interface ActionsPanelProps {
   onReset: () => void
   onImmediateMark: (action: ImmediateAction) => Promise<void>
   isMarking: ImmediateAction | null
+  blockingReasons: string[]
 }
 
 const ActionsPanel = ({
@@ -18,6 +19,7 @@ const ActionsPanel = ({
   onReset,
   onImmediateMark,
   isMarking,
+  blockingReasons,
 }: ActionsPanelProps) => {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -60,6 +62,16 @@ const ActionsPanel = ({
         >
           Cancelar
         </button>
+        {!canSave && blockingReasons.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <p className="font-semibold">No puedes guardar aún:</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {blockingReasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="relative" ref={menuRef}>
           <button
             type="button"

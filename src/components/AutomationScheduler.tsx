@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useController, useForm } from "react-hook-form";
 
 import ActionsPanel from "./automation/ActionsPanel";
 import LocationSection from "./automation/LocationSection";
@@ -6,7 +7,7 @@ import ScheduleBlock from "./automation/ScheduleBlock";
 import SummaryCard from "./automation/SummaryCard";
 import TimezoneSection from "./automation/TimezoneSection";
 import Toggle from "./automation/Toggle";
-import { DAYS, DEFAULT_POSITION } from "./automation/constants";
+import { DAYS } from "./automation/constants";
 import type {
   AutomationBlock,
   AutomationPayload,
@@ -39,28 +40,64 @@ interface AutomationSchedulerProps {
   onImmediateMark?: (action: "entrada" | "salida") => Promise<void>;
 }
 
+interface AutomationFormValues {
+  isActive: boolean;
+  randomWindowMinutes: number | null;
+  phoneNumber: string;
+  entry: AutomationBlock;
+  exit: AutomationBlock;
+  location: {
+    address: string;
+    lat: number | null;
+    lng: number | null;
+    radius: number | null;
+  };
+  timezone: string;
+}
+
+const toFormValues = (rule: AutomationRule): AutomationFormValues => ({
+  isActive: rule.activo,
+  randomWindowMinutes: rule.ventana_aleatoria_minutos ?? null,
+  phoneNumber: rule.telefono ?? "",
+  entry: {
+    habilitado: rule.entrada.habilitado,
+    hora_local: rule.entrada.hora_local ?? "",
+    hora_utc: rule.entrada.hora_utc ?? null,
+    dias: [...rule.entrada.dias],
+  },
+  exit: {
+    habilitado: rule.salida.habilitado,
+    hora_local: rule.salida.hora_local ?? "",
+    hora_utc: rule.salida.hora_utc ?? null,
+    dias: [...rule.salida.dias],
+  },
+  location: {
+    address: rule.ubicacion.direccion ?? "",
+    lat: rule.ubicacion.lat ?? null,
+    lng: rule.ubicacion.lng ?? null,
+    radius: rule.ubicacion.radio_metros ?? 100,
+  },
+  timezone: rule.zona_horaria ?? "",
+});
+
 const AutomationScheduler = ({
   initialRule,
   availableTimezones,
   onSave,
   onImmediateMark,
 }: AutomationSchedulerProps) => {
-  const [isActive, setIsActive] = useState(initialRule.activo);
-  const [entry, setEntry] = useState<AutomationBlock>({
-    ...initialRule.entrada,
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    trigger,
+    formState: { isValid },
+  } = useForm<AutomationFormValues>({
+    mode: "onChange",
+    defaultValues: toFormValues(initialRule),
   });
-  const [exit, setExit] = useState<AutomationBlock>({ ...initialRule.salida });
-  const [address, setAddress] = useState(initialRule.ubicacion.direccion ?? "");
-  const [lat, setLat] = useState<number | null>(
-    initialRule.ubicacion.lat ?? DEFAULT_POSITION[0]
-  );
-  const [lng, setLng] = useState<number | null>(
-    initialRule.ubicacion.lng ?? DEFAULT_POSITION[1]
-  );
-  const [radius, setRadius] = useState<number | null>(
-    initialRule.ubicacion.radio_metros ?? 100
-  );
-  const [timezone, setTimezone] = useState(initialRule.zona_horaria);
 
   const [geolocationLoading, setGeolocationLoading] = useState(false);
   const [geolocationError, setGeolocationError] = useState<string | null>(null);
@@ -80,68 +117,280 @@ const AutomationScheduler = ({
   const initialSnapshot = useRef<AutomationRule>(initialRule);
 
   useEffect(() => {
-    setIsActive(initialRule.activo);
-    setEntry({ ...initialRule.entrada });
-    setExit({ ...initialRule.salida });
-    setAddress(initialRule.ubicacion.direccion ?? "");
-    setLat(initialRule.ubicacion.lat ?? DEFAULT_POSITION[0]);
-    setLng(initialRule.ubicacion.lng ?? DEFAULT_POSITION[1]);
-    setRadius(initialRule.ubicacion.radio_metros ?? 100);
-    setTimezone(initialRule.zona_horaria);
+    reset(toFormValues(initialRule));
     initialSnapshot.current = initialRule;
-  }, [initialRule]);
+    setShowValidation(false);
+    setSaveStatus(null);
+    void trigger();
+  }, [initialRule, reset, trigger]);
+
+  const isActive = watch("isActive");
+  const entry = watch("entry");
+  const exit = watch("exit");
+  const location = watch("location");
+  const timezone = watch("timezone");
+  const randomWindowMinutes = watch("randomWindowMinutes");
+  const phoneNumber = watch("phoneNumber");
+  const { address, lat, lng, radius } = location;
+  const {
+    field: addressField,
+  } = useController({
+    control,
+    name: "location.address",
+  });
+  const {
+    field: latField,
+    fieldState: { error: latFieldError },
+  } = useController({
+    control,
+    name: "location.lat",
+    rules: {
+      validate: (value) =>
+        value === null ? "Selecciona una ubicación en el mapa." : true,
+    },
+  });
+  const {
+    field: lngField,
+    fieldState: { error: lngFieldError },
+  } = useController({
+    control,
+    name: "location.lng",
+    rules: {
+      validate: (value) =>
+        value === null ? "Selecciona una ubicación en el mapa." : true,
+    },
+  });
+  const {
+    field: radiusField,
+    fieldState: { error: radiusFieldError },
+  } = useController({
+    control,
+    name: "location.radius",
+    rules: {
+      validate: (value) => {
+        if (value === null || Number.isNaN(value)) {
+          return "Indica un radio válido.";
+        }
+        if (value <= 0) {
+          return "El radio debe ser mayor a 0 metros.";
+        }
+        return true;
+      },
+    },
+  });
+  const {
+    field: randomWindowField,
+    fieldState: { error: randomWindowError },
+  } = useController({
+    control,
+    name: "randomWindowMinutes",
+    rules: {
+      validate: (value) => {
+        if (value === null || Number.isNaN(value)) return true;
+        if (value < 0) {
+          return "La ventana aleatoria no puede ser negativa.";
+        }
+        return true;
+      },
+    },
+  });
+  const {
+    field: phoneNumberField,
+    fieldState: { error: phoneNumberError },
+  } = useController({
+    control,
+    name: "phoneNumber",
+    rules: {
+      validate: (value) => {
+        if (!value || !value.trim()) return true;
+        const digits = value.replace(/\D/g, "");
+        const withoutCountry = digits.startsWith("51")
+          ? digits.slice(2)
+          : digits;
+        if (withoutCountry.length === 8 || withoutCountry.length === 9) {
+          return true;
+        }
+        return "Ingresa un teléfono válido para Perú.";
+      },
+    },
+  });
+  const {
+    field: timezoneField,
+    fieldState: { error: timezoneError },
+  } = useController({
+    control,
+    name: "timezone",
+    rules: {
+      validate: (value) =>
+        value && value.trim().length > 0
+          ? true
+          : "Selecciona una zona horaria.",
+    },
+  });
+  const {
+    field: entryEnabledField,
+  } = useController({
+    control,
+    name: "entry.habilitado",
+  });
+  const {
+    field: entryTimeField,
+    fieldState: { error: entryTimeError },
+  } = useController({
+    control,
+    name: "entry.hora_local",
+    rules: {
+      validate: (value) => {
+        if (!entry.habilitado) return true;
+        if (!value || !value.trim()) {
+          return "Ingresa una hora de entrada.";
+        }
+        if (!isValidTime(value)) {
+          return "Usa el formato HH:MM (24 horas).";
+        }
+        return true;
+      },
+    },
+  });
+  const {
+    field: entryDaysField,
+    fieldState: { error: entryDaysError },
+  } = useController({
+    control,
+    name: "entry.dias",
+  });
+  const {
+    field: exitEnabledField,
+  } = useController({
+    control,
+    name: "exit.habilitado",
+  });
+  const {
+    field: exitTimeField,
+    fieldState: { error: exitTimeError },
+  } = useController({
+    control,
+    name: "exit.hora_local",
+    rules: {
+      validate: (value) => {
+        if (!exit.habilitado) return true;
+        if (!value || !value.trim()) {
+          return "Ingresa una hora de salida.";
+        }
+        if (!isValidTime(value)) {
+          return "Usa el formato HH:MM (24 horas).";
+        }
+        return true;
+      },
+    },
+  });
+  const {
+    field: exitDaysField,
+    fieldState: { error: exitDaysError },
+  } = useController({
+    control,
+    name: "exit.dias",
+  });
 
   const offsetMinutes = useMemo(
     () => extractOffsetMinutes(timezone),
     [timezone]
   );
 
+  const entryUtcTime = useMemo(() => {
+    if (!entry.habilitado) return null;
+    if (entry.hora_local && isValidTime(entry.hora_local)) {
+      return toUtcTime(entry.hora_local, offsetMinutes);
+    }
+    return entry.hora_utc ?? null;
+  }, [entry.habilitado, entry.hora_local, entry.hora_utc, offsetMinutes]);
+
+  const exitUtcTime = useMemo(() => {
+    if (!exit.habilitado) return null;
+    if (exit.hora_local && isValidTime(exit.hora_local)) {
+      return toUtcTime(exit.hora_local, offsetMinutes);
+    }
+    return exit.hora_utc ?? null;
+  }, [exit.habilitado, exit.hora_local, exit.hora_utc, offsetMinutes]);
+
+  const randomWindowErrorMessage =
+    typeof randomWindowError?.message === "string"
+      ? randomWindowError.message
+      : undefined;
+
+  const phoneNumberErrorMessage =
+    typeof phoneNumberError?.message === "string"
+      ? phoneNumberError.message
+      : undefined;
+
+  const timezoneErrorMessage =
+    typeof timezoneError?.message === "string"
+      ? timezoneError.message
+      : undefined;
+
+  const locationErrors: string[] = useMemo(() => {
+    const messages = new Set<string>();
+    if (typeof latFieldError?.message === "string") {
+      messages.add(latFieldError.message);
+    }
+    if (typeof lngFieldError?.message === "string") {
+      messages.add(lngFieldError.message);
+    }
+    if (typeof radiusFieldError?.message === "string") {
+      messages.add(radiusFieldError.message);
+    }
+    return Array.from(messages);
+  }, [
+    latFieldError?.message,
+    lngFieldError?.message,
+    radiusFieldError?.message,
+  ]);
+
   const entryErrors = useMemo(() => {
-    const errors: string[] = [];
-    if (!entry.habilitado) return errors;
-    if (!entry.hora_local || !entry.hora_local.trim()) {
-      errors.push("Ingresa una hora de entrada.");
-    } else if (!isValidTime(entry.hora_local)) {
-      errors.push("Usa el formato HH:MM (24 horas).");
+    const errorsList: string[] = [];
+    if (typeof entryTimeError?.message === "string") {
+      errorsList.push(entryTimeError.message);
     }
-    if (!entry.dias.length) {
-      errors.push("Selecciona al menos un día.");
+    if (typeof entryDaysError?.message === "string") {
+      errorsList.push(entryDaysError.message);
     }
-    return errors;
-  }, [entry]);
+    return errorsList;
+  }, [entryTimeError?.message, entryDaysError?.message]);
 
   const exitErrors = useMemo(() => {
-    const errors: string[] = [];
-    if (!exit.habilitado) return errors;
-    if (!exit.hora_local || !exit.hora_local.trim()) {
-      errors.push("Ingresa una hora de salida.");
-    } else if (!isValidTime(exit.hora_local)) {
-      errors.push("Usa el formato HH:MM (24 horas).");
+    const errorsList: string[] = [];
+    if (typeof exitTimeError?.message === "string") {
+      errorsList.push(exitTimeError.message);
     }
-    if (!exit.dias.length) {
-      errors.push("Selecciona al menos un día.");
+    if (typeof exitDaysError?.message === "string") {
+      errorsList.push(exitDaysError.message);
     }
-    return errors;
-  }, [exit]);
+    return errorsList;
+  }, [exitTimeError?.message, exitDaysError?.message]);
 
-  const locationErrors = useMemo(() => {
-    const errors: string[] = [];
-    if (lat === null || lng === null) {
-      errors.push("Selecciona una ubicación en el mapa.");
+  const blockingReasons = useMemo(() => {
+    const reasons: string[] = [];
+    reasons.push(...entryErrors, ...exitErrors, ...locationErrors);
+    if (randomWindowErrorMessage) {
+      reasons.push(randomWindowErrorMessage);
     }
-    if (radius === null || Number.isNaN(radius)) {
-      errors.push("Indica un radio válido.");
-    } else if (radius <= 0) {
-      errors.push("El radio debe ser mayor a 0 metros.");
+    if (phoneNumberErrorMessage) {
+      reasons.push(phoneNumberErrorMessage);
     }
-    return errors;
-  }, [lat, lng, radius]);
+    if (timezoneErrorMessage) {
+      reasons.push(timezoneErrorMessage);
+    }
+    return Array.from(new Set(reasons));
+  }, [
+    entryErrors,
+    exitErrors,
+    locationErrors,
+    phoneNumberErrorMessage,
+    randomWindowErrorMessage,
+    timezoneErrorMessage,
+  ]);
 
-  const canSave =
-    (!entry.habilitado || entryErrors.length === 0) &&
-    (!exit.habilitado || exitErrors.length === 0) &&
-    locationErrors.length === 0 &&
-    !isSaving;
+  const canSave = isValid && !isSaving;
 
   const summary = useMemo(
     () => [
@@ -152,9 +401,25 @@ const AutomationScheduler = ({
           : "Automática: desactivada",
       },
       {
+        label: "Entrada (UTC)",
+        value: entry.habilitado
+          ? entryUtcTime
+            ? `a las ${entryUtcTime}`
+            : "Sin hora UTC"
+          : "Automática: desactivada",
+      },
+      {
         label: "Salida",
         value: exit.habilitado
           ? `${formatDays(exit.dias)} a las ${exit.hora_local || "--:--"}`
+          : "Automática: desactivada",
+      },
+      {
+        label: "Salida (UTC)",
+        value: exit.habilitado
+          ? exitUtcTime
+            ? `a las ${exitUtcTime}`
+            : "Sin hora UTC"
           : "Automática: desactivada",
       },
       {
@@ -169,35 +434,61 @@ const AutomationScheduler = ({
         value: timezone,
       },
       {
+        label: "Ventana aleatoria",
+        value:
+          randomWindowMinutes === null
+            ? "Sin ventana"
+            : `${randomWindowMinutes} min`,
+      },
+      {
+        label: "Teléfono",
+        value: phoneNumber.trim() ? phoneNumber : "Sin teléfono",
+      },
+      {
         label: "Estado",
         value: isActive ? "Activo" : "Inactivo",
       },
     ],
-    [address, entry, exit, isActive, lat, lng, radius, timezone]
+    [
+      address,
+      entry,
+      entryUtcTime,
+      exit,
+      exitUtcTime,
+      isActive,
+      lat,
+      lng,
+      phoneNumber,
+      radius,
+      randomWindowMinutes,
+      timezone,
+    ]
   );
 
-  const handleToggleDay = useCallback(
-    (type: "entrada" | "salida", day: DayKey) => {
-      const toggle = (block: AutomationBlock) => {
-        const exists = block.dias.includes(day);
-        return {
-          ...block,
-          dias: exists
-            ? block.dias.filter((d) => d !== day)
-            : [...block.dias, day].sort(
-                (a, b) => DAYS.indexOf(a) - DAYS.indexOf(b)
-              ),
-        };
-      };
+  const toggleDay = (current: DayKey[], day: DayKey) => {
+    const exists = current.includes(day);
+    return exists
+      ? current.filter((d) => d !== day)
+      : [...current, day].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
+  };
 
-      if (type === "entrada") {
-        setEntry((prev) => toggle(prev));
-      } else {
-        setExit((prev) => toggle(prev));
-      }
-    },
-    []
-  );
+  const handleEntryDayToggle = (day: DayKey) => {
+    entryDaysField.onChange(toggleDay(entry.dias, day));
+  };
+
+  const handleExitDayToggle = (day: DayKey) => {
+    exitDaysField.onChange(toggleDay(exit.dias, day));
+  };
+
+  const handleEntryEnabledChange = (value: boolean) => {
+    entryEnabledField.onChange(value);
+    void trigger(["entry.hora_local", "entry.dias"]);
+  };
+
+  const handleExitEnabledChange = (value: boolean) => {
+    exitEnabledField.onChange(value);
+    void trigger(["exit.hora_local", "exit.dias"]);
+  };
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -210,8 +501,8 @@ const AutomationScheduler = ({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        setLat(latitude);
-        setLng(longitude);
+        latField.onChange(latitude);
+        lngField.onChange(longitude);
         setGeolocationLoading(false);
       },
       (error) => {
@@ -257,28 +548,38 @@ const AutomationScheduler = ({
       : [],
   });
 
-  const handleSave = async () => {
-    setShowValidation(true);
-    setSaveStatus(null);
+  const submitForm = handleSubmit(async (values) => {
+    const normalizedEntry = normalizeBlock(values.entry);
+    const normalizedExit = normalizeBlock(values.exit);
 
-    if (!canSave) return;
-
-    const normalizedEntry = normalizeBlock(entry);
-    const normalizedExit = normalizeBlock(exit);
+    const normalizedPhoneNumber = (() => {
+      const trimmed = values.phoneNumber.trim();
+      if (!trimmed) return null;
+      const digits = trimmed.replace(/\D/g, "");
+      const withoutCountry = digits.startsWith("51")
+        ? digits.slice(2)
+        : digits;
+      if (withoutCountry.length === 8 || withoutCountry.length === 9) {
+        return `+51${withoutCountry}`;
+      }
+      return trimmed;
+    })();
 
     const persistPayload: PersistedAutomationPayload = {
-      isActive: isActive,
+      isActive: values.isActive,
+      randomWindowMinutes: values.randomWindowMinutes ?? null,
+      phoneNumber: normalizedPhoneNumber,
       schedule: {
         entry: toPersistedBlock(normalizedEntry),
         exit: toPersistedBlock(normalizedExit),
       },
       location: {
-        address: address.trim(),
-        latitude: lat ?? null,
-        longitude: lng ?? null,
-        radiusMeters: radius ?? null,
+        address: values.location.address.trim(),
+        latitude: values.location.lat ?? null,
+        longitude: values.location.lng ?? null,
+        radiusMeters: values.location.radius ?? null,
       },
-      timezone,
+      timezone: values.timezone,
     };
 
     try {
@@ -287,7 +588,6 @@ const AutomationScheduler = ({
         await onSave(persistPayload);
       } else {
         await new Promise((resolve) => setTimeout(resolve, 800));
-        // eslint-disable-next-line no-console
         console.info("Guardar payload", persistPayload);
       }
       setSaveStatus({
@@ -295,7 +595,9 @@ const AutomationScheduler = ({
         message: "Configuración guardada correctamente.",
       });
       initialSnapshot.current = {
-        activo: isActive,
+        activo: values.isActive,
+        ventana_aleatoria_minutos: values.randomWindowMinutes ?? null,
+        telefono: normalizedPhoneNumber,
         entrada: {
           habilitado: normalizedEntry.habilitado,
           hora_local: normalizedEntry.hora_local,
@@ -307,13 +609,16 @@ const AutomationScheduler = ({
           dias: normalizedExit.dias,
         },
         ubicacion: {
-          direccion: address.trim(),
-          lat: lat ?? null,
-          lng: lng ?? null,
-          radio_metros: radius ?? null,
+          direccion: values.location.address.trim(),
+          lat: values.location.lat ?? null,
+          lng: values.location.lng ?? null,
+          radio_metros: values.location.radius ?? null,
         },
-        zona_horaria: timezone,
+        zona_horaria: values.timezone,
       };
+      reset(toFormValues(initialSnapshot.current));
+      setShowValidation(false);
+      await trigger();
     } catch (error) {
       setSaveStatus({
         type: "error",
@@ -325,20 +630,19 @@ const AutomationScheduler = ({
     } finally {
       setIsSaving(false);
     }
+  });
+
+  const handleSave = () => {
+    setShowValidation(true);
+    setSaveStatus(null);
+    void submitForm();
   };
 
   const handleReset = () => {
-    const snapshot = initialSnapshot.current;
-    setIsActive(snapshot.activo);
-    setEntry({ ...snapshot.entrada });
-    setExit({ ...snapshot.salida });
-    setAddress(snapshot.ubicacion.direccion ?? "");
-    setLat(snapshot.ubicacion.lat ?? DEFAULT_POSITION[0]);
-    setLng(snapshot.ubicacion.lng ?? DEFAULT_POSITION[1]);
-    setRadius(snapshot.ubicacion.radio_metros ?? 100);
-    setTimezone(snapshot.zona_horaria);
+    reset(toFormValues(initialSnapshot.current));
     setSaveStatus(null);
     setShowValidation(false);
+    void trigger();
   };
 
   const handleImmediateMark = async (action: "entrada" | "salida") => {
@@ -433,7 +737,12 @@ const AutomationScheduler = ({
             <div className="flex flex-col gap-2">
               <Toggle
                 checked={isActive}
-                onChange={setIsActive}
+                onChange={(value) =>
+                  setValue("isActive", value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
                 label={isActive ? "Activado" : "Desactivado"}
               />
               <p className="text-sm text-slate-500">
@@ -454,13 +763,9 @@ const AutomationScheduler = ({
                 block={entry}
                 timeInputId="entrada-time"
                 timeLabel="Hora de entrada"
-                onToggleEnabled={(value) =>
-                  setEntry((prev) => ({ ...prev, habilitado: value }))
-                }
-                onTimeChange={(value) =>
-                  setEntry((prev) => ({ ...prev, hora_local: value }))
-                }
-                onToggleDay={(day) => handleToggleDay("entrada", day)}
+                onToggleEnabled={handleEntryEnabledChange}
+                onTimeChange={(value) => entryTimeField.onChange(value)}
+                onToggleDay={handleEntryDayToggle}
                 validationErrors={entryErrors}
                 showValidation={showValidation}
               />
@@ -471,30 +776,89 @@ const AutomationScheduler = ({
                 block={exit}
                 timeInputId="salida-time"
                 timeLabel="Hora de salida"
-                onToggleEnabled={(value) =>
-                  setExit((prev) => ({ ...prev, habilitado: value }))
-                }
-                onTimeChange={(value) =>
-                  setExit((prev) => ({ ...prev, hora_local: value }))
-                }
-                onToggleDay={(day) => handleToggleDay("salida", day)}
+                onToggleEnabled={handleExitEnabledChange}
+                onTimeChange={(value) => exitTimeField.onChange(value)}
+                onToggleDay={handleExitDayToggle}
                 validationErrors={exitErrors}
                 showValidation={showValidation}
               />
             </div>
           </section>
 
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Ventana aleatoria
+            </h2>
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-700">
+                Minutos de variación
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={
+                  randomWindowField.value === null
+                    ? ""
+                    : randomWindowField.value
+                }
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  if (!nextValue.trim()) {
+                    randomWindowField.onChange(null);
+                    return;
+                  }
+                  const parsed = Number(nextValue);
+                  randomWindowField.onChange(Number.isNaN(parsed) ? null : parsed);
+                }}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
+                placeholder="0"
+              />
+              <p className="text-sm text-slate-500">
+                Define un rango aleatorio en minutos para adelantar o atrasar la
+                marcación.
+              </p>
+              {showValidation && randomWindowErrorMessage && (
+                <p className="text-sm text-rose-600">{randomWindowErrorMessage}</p>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Teléfono de contacto
+            </h2>
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-slate-700">
+                Número en formato E.164 (+51)
+              </label>
+              <input
+                type="tel"
+                value={phoneNumberField.value}
+                onChange={(event) => phoneNumberField.onChange(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
+                placeholder="+51987654321"
+              />
+              <p className="text-sm text-slate-500">
+                Usa un número móvil o fijo peruano con prefijo +51.
+              </p>
+              {showValidation && phoneNumberErrorMessage && (
+                <p className="text-sm text-rose-600">{phoneNumberErrorMessage}</p>
+              )}
+            </div>
+          </section>
+
           <LocationSection
-            address={address}
-            onAddressChange={setAddress}
-            lat={lat}
-            lng={lng}
-            radius={radius}
+            address={addressField.value}
+            onAddressChange={(value) => addressField.onChange(value)}
+            lat={latField.value}
+            lng={lngField.value}
+            radius={radiusField.value}
             onPositionChange={({ lat: newLat, lng: newLng }) => {
-              setLat(newLat);
-              setLng(newLng);
+              latField.onChange(newLat);
+              lngField.onChange(newLng);
             }}
-            onRadiusChange={setRadius}
+            onRadiusChange={(value) => radiusField.onChange(value)}
             onUseCurrentLocation={handleUseCurrentLocation}
             geolocationLoading={geolocationLoading}
             geolocationError={geolocationError}
@@ -503,9 +867,11 @@ const AutomationScheduler = ({
           />
 
           <TimezoneSection
-            timezone={timezone}
+            timezone={timezoneField.value}
             availableTimezones={availableTimezones}
-            onTimezoneChange={setTimezone}
+            onTimezoneChange={(value) => timezoneField.onChange(value)}
+            showValidation={showValidation}
+            error={timezoneErrorMessage}
           />
         </div>
 
@@ -519,6 +885,7 @@ const AutomationScheduler = ({
             onReset={handleReset}
             onImmediateMark={handleImmediateMark}
             isMarking={isMarking}
+            blockingReasons={!canSave ? blockingReasons : []}
           />
         </div>
       </div>

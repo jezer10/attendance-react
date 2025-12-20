@@ -5,6 +5,8 @@ interface TimezoneSectionProps {
   timezone: string
   availableTimezones: string[]
   onTimezoneChange: (value: string) => void
+  showValidation: boolean
+  error?: string
 }
 
 const RESULTS_STEP = 5
@@ -13,6 +15,8 @@ const TimezoneSection = ({
   timezone,
   availableTimezones,
   onTimezoneChange,
+  showValidation,
+  error,
 }: TimezoneSectionProps) => {
   const [query, setQuery] = useState('')
   const [visibleCount, setVisibleCount] = useState(RESULTS_STEP)
@@ -132,6 +136,9 @@ const TimezoneSection = ({
         Las horas configuradas arriba se interpretan en tu hora local. Internamente se
         guardarán en UTC.
       </p>
+      {showValidation && error ? (
+        <p className="text-sm text-rose-600">{error}</p>
+      ) : null}
     </section>
   )
 }

@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Circle, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import {
+  Circle,
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -32,6 +39,20 @@ const MapViewUpdater = ({ position }: { position: [number, number] }) => {
   return null
 }
 
+const MapClickHandler = ({
+  onSelect,
+}: {
+  onSelect: (coords: { lat: number; lng: number }) => void
+}) => {
+  useMapEvents({
+    click: (event) => {
+      onSelect({ lat: event.latlng.lat, lng: event.latlng.lng })
+    },
+  })
+
+  return null
+}
+
 const LocationMap = ({ position, radius, onPositionChange }: LocationMapProps) => {
   const [isReady, setIsReady] = useState(false)
 
@@ -53,6 +74,7 @@ const LocationMap = ({ position, radius, onPositionChange }: LocationMapProps) =
       className="h-64 w-full rounded-xl border border-slate-200"
     >
       <MapViewUpdater position={[lat, lng]} />
+      <MapClickHandler onSelect={onPositionChange} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

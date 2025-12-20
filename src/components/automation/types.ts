@@ -3,6 +3,7 @@ export type DayKey = 'Lun' | 'Mar' | 'Mie' | 'Jue' | 'Vie' | 'Sab' | 'Dom'
 export interface AutomationBlock {
   habilitado: boolean
   hora_local: string
+  hora_utc?: string | null
   dias: DayKey[]
 }
 
@@ -15,6 +16,8 @@ export interface LocationSettings {
 
 export interface AutomationRule {
   activo: boolean
+  ventana_aleatoria_minutos?: number | null
+  telefono?: string | null
   entrada: AutomationBlock
   salida: AutomationBlock
   ubicacion: LocationSettings
@@ -44,6 +47,8 @@ export interface PersistedTimeBlock {
 
 export interface PersistedAutomationPayload {
   isActive: boolean
+  randomWindowMinutes?: number | null
+  phoneNumber?: string | null
   schedule: {
     entry: PersistedTimeBlock
     exit: PersistedTimeBlock
