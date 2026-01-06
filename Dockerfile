@@ -1,14 +1,22 @@
 # Build
-FROM node:20-alpine AS build
+FROM node:alpine AS build
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+
+# Habilita pnpm vía corepack
+RUN corepack enable
+
+# Copia manifests primero (para aprovechar cache)
+COPY package.json pnpm-lock.yaml ./
+
+# Instala dependencias (usa lockfile)
+RUN pnpm install --frozen-lockfile
+
+# Copia el resto y compila
 COPY . .
-RUN npm run build
+RUN pnpm build
 
 # Serve
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-# Opcional: custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
