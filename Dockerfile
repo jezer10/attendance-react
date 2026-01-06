@@ -1,5 +1,5 @@
 # Build
-FROM node:alpine AS build
+FROM node:lts-alpine AS build
 WORKDIR /app
 
 # Habilita pnpm vía corepack
