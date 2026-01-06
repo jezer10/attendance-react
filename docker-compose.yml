@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  react_app:
+    build: .
+    container_name: react-vite-app
+    restart: unless-stopped
+    networks:
+      - general_bridge
+    ports:
+      - "80"
+
+networks:
+  general_bridge:
+    external: true
