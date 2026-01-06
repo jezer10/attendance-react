@@ -21,6 +21,12 @@ export interface AuthTokens {
   expiresAt?: number;
 }
 
+const normalizeTokenType = (tokenType?: string) => {
+  if (!tokenType) return "Bearer";
+  if (tokenType.toLowerCase() === "bearer") return "Bearer";
+  return tokenType;
+};
+
 const persistTokens = (tokens: AuthTokens) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
   localStorage.setItem("authToken", tokens.accessToken);
@@ -70,7 +76,7 @@ const parseTokens = (payload: any): AuthTokens => ({
   userId: payload.user_id,
   accessToken: payload.access_token,
   refreshToken: payload.refresh_token,
-  tokenType: payload.token_type ?? "bearer",
+  tokenType: normalizeTokenType(payload.token_type),
   expiresAt: calculateExpiry(payload.access_token),
 });
 

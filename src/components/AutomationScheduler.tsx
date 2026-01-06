@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useController, useForm } from "react-hook-form";
+import {
+  AsYouType,
+  getCountries,
+  getCountryCallingCode,
+  getExampleNumber,
+  parsePhoneNumberFromString,
+} from "libphonenumber-js";
+import countries from "i18n-iso-countries";
+import esCountries from "i18n-iso-countries/langs/es.json";
+import enCountries from "i18n-iso-countries/langs/en.json";
+import examples from "libphonenumber-js/examples.mobile.json";
 
 import ActionsPanel from "./automation/ActionsPanel";
 import LocationSection from "./automation/LocationSection";
@@ -33,6 +44,49 @@ const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Dom: "sunday",
 };
 
+type PhoneCountry = {
+  id: string;
+  label: string;
+  dialCode: string;
+};
+
+countries.registerLocale(esCountries);
+countries.registerLocale(enCountries);
+
+const buildPhoneCountries = (): PhoneCountry[] => {
+  const regions = getCountries();
+  return regions
+    .map((region) => {
+      const label =
+        countries.getName(region, "es") ||
+        countries.getName(region, "en") ||
+        region;
+      let dialCode = "";
+      try {
+        dialCode = String(getCountryCallingCode(region));
+      } catch {
+        dialCode = "";
+      }
+      return { id: region, label, dialCode };
+    })
+    .filter((country) => country.dialCode)
+    .sort((a, b) => a.label.localeCompare(b.label, "es"));
+};
+
+const FALLBACK_COUNTRY: PhoneCountry = {
+  id: "PE",
+  label: "Perú",
+  dialCode: "51",
+};
+
+const PHONE_COUNTRIES = buildPhoneCountries();
+const PHONE_COUNTRIES_WITH_FALLBACK =
+  PHONE_COUNTRIES.length > 0 ? PHONE_COUNTRIES : [FALLBACK_COUNTRY];
+const DEFAULT_PHONE_COUNTRY =
+  PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === "PE") ??
+  PHONE_COUNTRIES_WITH_FALLBACK[0];
+const MAX_NATIONAL_LENGTH = 15;
+
 interface AutomationSchedulerProps {
   initialRule: AutomationRule;
   availableTimezones: string[];
@@ -43,6 +97,7 @@ interface AutomationSchedulerProps {
 interface AutomationFormValues {
   isActive: boolean;
   randomWindowMinutes: number | null;
+  phoneCountry: string;
   phoneNumber: string;
   entry: AutomationBlock;
   exit: AutomationBlock;
@@ -55,30 +110,58 @@ interface AutomationFormValues {
   timezone: string;
 }
 
-const toFormValues = (rule: AutomationRule): AutomationFormValues => ({
-  isActive: rule.activo,
-  randomWindowMinutes: rule.ventana_aleatoria_minutos ?? null,
-  phoneNumber: rule.telefono ?? "",
-  entry: {
-    habilitado: rule.entrada.habilitado,
-    hora_local: rule.entrada.hora_local ?? "",
-    hora_utc: rule.entrada.hora_utc ?? null,
-    dias: [...rule.entrada.dias],
-  },
-  exit: {
-    habilitado: rule.salida.habilitado,
-    hora_local: rule.salida.hora_local ?? "",
-    hora_utc: rule.salida.hora_utc ?? null,
-    dias: [...rule.salida.dias],
-  },
-  location: {
-    address: rule.ubicacion.direccion ?? "",
-    lat: rule.ubicacion.lat ?? null,
-    lng: rule.ubicacion.lng ?? null,
-    radius: rule.ubicacion.radio_metros ?? 100,
-  },
-  timezone: rule.zona_horaria ?? "",
-});
+const findPhoneCountry = (id?: string | null) =>
+  PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === id);
+
+const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
+
+const toFormValues = (rule: AutomationRule): AutomationFormValues => {
+  const rawPhone = rule.telefono ?? "";
+  const digits = normalizePhoneDigits(rawPhone);
+  let country = DEFAULT_PHONE_COUNTRY;
+  let number = digits;
+
+  if (rawPhone.startsWith("+") && digits) {
+    try {
+      const parsed = parsePhoneNumberFromString(rawPhone);
+      if (parsed?.country) {
+        const matchedCountry = findPhoneCountry(parsed.country);
+        if (matchedCountry) {
+          country = matchedCountry;
+          number = parsed.nationalNumber;
+        }
+      }
+    } catch {
+      // Keep fallback defaults if parsing fails.
+    }
+  }
+
+  return {
+    isActive: rule.activo,
+    randomWindowMinutes: rule.ventana_aleatoria_minutos ?? null,
+    phoneCountry: country.id,
+    phoneNumber: number,
+    entry: {
+      habilitado: rule.entrada.habilitado,
+      hora_local: rule.entrada.hora_local ?? "",
+      hora_utc: rule.entrada.hora_utc ?? null,
+      dias: [...rule.entrada.dias],
+    },
+    exit: {
+      habilitado: rule.salida.habilitado,
+      hora_local: rule.salida.hora_local ?? "",
+      hora_utc: rule.salida.hora_utc ?? null,
+      dias: [...rule.salida.dias],
+    },
+    location: {
+      address: rule.ubicacion.direccion ?? "",
+      lat: rule.ubicacion.lat ?? null,
+      lng: rule.ubicacion.lng ?? null,
+      radius: rule.ubicacion.radio_metros ?? 100,
+    },
+    timezone: rule.zona_horaria ?? "",
+  };
+};
 
 const AutomationScheduler = ({
   initialRule,
@@ -130,11 +213,26 @@ const AutomationScheduler = ({
   const location = watch("location");
   const timezone = watch("timezone");
   const randomWindowMinutes = watch("randomWindowMinutes");
+  const phoneCountry = watch("phoneCountry");
   const phoneNumber = watch("phoneNumber");
   const { address, lat, lng, radius } = location;
-  const {
-    field: addressField,
-  } = useController({
+
+  const toMinutes = (value: string) => {
+    const [hours, minutes] = value.split(":").map(Number);
+    return hours * 60 + minutes;
+  };
+
+  useEffect(() => {
+    if (!exit.habilitado) return;
+    void trigger("exit.hora_local");
+  }, [
+    entry.habilitado,
+    entry.hora_local,
+    entry.dias,
+    exit.habilitado,
+    trigger,
+  ]);
+  const { field: addressField } = useController({
     control,
     name: "location.address",
   });
@@ -203,16 +301,23 @@ const AutomationScheduler = ({
     rules: {
       validate: (value) => {
         if (!value || !value.trim()) return true;
-        const digits = value.replace(/\D/g, "");
-        const withoutCountry = digits.startsWith("51")
-          ? digits.slice(2)
-          : digits;
-        if (withoutCountry.length === 8 || withoutCountry.length === 9) {
-          return true;
+        const digits = normalizePhoneDigits(value);
+        const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
+        try {
+          const parsed = parsePhoneNumberFromString(digits, country.id);
+          if (parsed?.isValid()) {
+            return true;
+          }
+        } catch {
+          // Fall through to error.
         }
-        return "Ingresa un teléfono válido para Perú.";
+        return "Ingresa un teléfono válido para el país seleccionado.";
       },
     },
+  });
+  const { field: phoneCountryField } = useController({
+    control,
+    name: "phoneCountry",
   });
   const {
     field: timezoneField,
@@ -227,9 +332,7 @@ const AutomationScheduler = ({
           : "Selecciona una zona horaria.",
     },
   });
-  const {
-    field: entryEnabledField,
-  } = useController({
+  const { field: entryEnabledField } = useController({
     control,
     name: "entry.habilitado",
   });
@@ -259,9 +362,7 @@ const AutomationScheduler = ({
     control,
     name: "entry.dias",
   });
-  const {
-    field: exitEnabledField,
-  } = useController({
+  const { field: exitEnabledField } = useController({
     control,
     name: "exit.habilitado",
   });
@@ -279,6 +380,17 @@ const AutomationScheduler = ({
         }
         if (!isValidTime(value)) {
           return "Usa el formato HH:MM (24 horas).";
+        }
+        if (entry.habilitado) {
+          const entryTime = entry.hora_local;
+          if (entryTime && isValidTime(entryTime)) {
+            const sharedDays = entry.dias.some((day) =>
+              exit.dias.includes(day)
+            );
+            if (sharedDays && toMinutes(value) <= toMinutes(entryTime)) {
+              return "La hora de salida debe ser posterior a la de entrada en el mismo día.";
+            }
+          }
         }
         return true;
       },
@@ -322,6 +434,36 @@ const AutomationScheduler = ({
     typeof phoneNumberError?.message === "string"
       ? phoneNumberError.message
       : undefined;
+
+  const formattedPhoneNumber = useMemo(() => {
+    const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
+    if (!phoneNumber) return "";
+    return new AsYouType(country.id).input(phoneNumber) || phoneNumber;
+  }, [phoneCountry, phoneNumber]);
+
+  const phonePlaceholder = useMemo(() => {
+    const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
+    try {
+      const example = getExampleNumber(country.id, examples);
+      if (example) {
+        return example.formatNational();
+      }
+    } catch {
+      // Keep fallback placeholder.
+    }
+    return "123 456 789";
+  }, [phoneCountry]);
+
+  const phoneDisplay = useMemo(() => {
+    if (!phoneNumber.trim()) return "";
+    const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
+    try {
+      const parsed = parsePhoneNumberFromString(phoneNumber, country.id);
+      return parsed?.formatInternational() ?? phoneNumber;
+    } catch {
+      return `+${country.dialCode} ${formattedPhoneNumber}`.trim();
+    }
+  }, [formattedPhoneNumber, phoneCountry, phoneNumber]);
 
   const timezoneErrorMessage =
     typeof timezoneError?.message === "string"
@@ -442,7 +584,7 @@ const AutomationScheduler = ({
       },
       {
         label: "Teléfono",
-        value: phoneNumber.trim() ? phoneNumber : "Sin teléfono",
+        value: phoneNumber.trim() ? phoneDisplay : "Sin teléfono",
       },
       {
         label: "Estado",
@@ -458,7 +600,7 @@ const AutomationScheduler = ({
       isActive,
       lat,
       lng,
-      phoneNumber,
+      phoneDisplay,
       radius,
       randomWindowMinutes,
       timezone,
@@ -555,14 +697,15 @@ const AutomationScheduler = ({
     const normalizedPhoneNumber = (() => {
       const trimmed = values.phoneNumber.trim();
       if (!trimmed) return null;
-      const digits = trimmed.replace(/\D/g, "");
-      const withoutCountry = digits.startsWith("51")
-        ? digits.slice(2)
-        : digits;
-      if (withoutCountry.length === 8 || withoutCountry.length === 9) {
-        return `+51${withoutCountry}`;
+      const digits = normalizePhoneDigits(trimmed);
+      const country =
+        findPhoneCountry(values.phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
+      try {
+        const parsed = parsePhoneNumberFromString(digits, country.id);
+        return parsed?.format("E.164") ?? `+${country.dialCode}${digits}`;
+      } catch {
+        return `+${country.dialCode}${digits}`;
       }
-      return trimmed;
     })();
 
     const persistPayload: PersistedAutomationPayload = {
@@ -809,7 +952,9 @@ const AutomationScheduler = ({
                     return;
                   }
                   const parsed = Number(nextValue);
-                  randomWindowField.onChange(Number.isNaN(parsed) ? null : parsed);
+                  randomWindowField.onChange(
+                    Number.isNaN(parsed) ? null : parsed
+                  );
                 }}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
                 placeholder="0"
@@ -819,7 +964,9 @@ const AutomationScheduler = ({
                 marcación.
               </p>
               {showValidation && randomWindowErrorMessage && (
-                <p className="text-sm text-rose-600">{randomWindowErrorMessage}</p>
+                <p className="text-sm text-rose-600">
+                  {randomWindowErrorMessage}
+                </p>
               )}
             </div>
           </section>
@@ -830,20 +977,48 @@ const AutomationScheduler = ({
             </h2>
             <div className="space-y-3">
               <label className="text-sm font-medium text-slate-700">
-                Número en formato E.164 (+51)
+                País y número
               </label>
-              <input
-                type="tel"
-                value={phoneNumberField.value}
-                onChange={(event) => phoneNumberField.onChange(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-                placeholder="+51987654321"
-              />
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
+                <select
+                  value={phoneCountryField.value}
+                  onChange={(event) => {
+                    const nextCountry = event.target.value;
+                    phoneCountryField.onChange(nextCountry);
+                    const digits = normalizePhoneDigits(phoneNumberField.value);
+                    phoneNumberField.onChange(
+                      digits.slice(0, MAX_NATIONAL_LENGTH)
+                    );
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
+                >
+                  {PHONE_COUNTRIES_WITH_FALLBACK.map((country) => (
+                    <option key={country.id} value={country.id}>
+                      {country.label} (+{country.dialCode})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formattedPhoneNumber}
+                  onChange={(event) => {
+                    const digits = normalizePhoneDigits(event.target.value);
+                    phoneNumberField.onChange(
+                      digits.slice(0, MAX_NATIONAL_LENGTH)
+                    );
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
+                  placeholder={phonePlaceholder}
+                />
+              </div>
               <p className="text-sm text-slate-500">
-                Usa un número móvil o fijo peruano con prefijo +51.
+                Ingresa el número local y selecciona el país.
               </p>
               {showValidation && phoneNumberErrorMessage && (
-                <p className="text-sm text-rose-600">{phoneNumberErrorMessage}</p>
+                <p className="text-sm text-rose-600">
+                  {phoneNumberErrorMessage}
+                </p>
               )}
             </div>
           </section>
