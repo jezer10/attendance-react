@@ -1,7 +1,11 @@
 import { redirect, type LoaderFunctionArgs } from "react-router";
 
 import type { AutomationRule } from "../components/AutomationScheduler";
-import { fetchAvailableTimezones, fetchAutomationRule } from "../services/api";
+import {
+  fetchAttendanceCredentials,
+  fetchAvailableTimezones,
+  fetchAutomationRule,
+} from "../services/api";
 import {
   AuthorizationError,
   requireAuthTokens,
@@ -12,6 +16,7 @@ export interface AutomationLoaderData {
   tokens: AuthTokens;
   rule: AutomationRule;
   timezones: string[];
+  credentials: Awaited<ReturnType<typeof fetchAttendanceCredentials>>;
 }
 
 export const automationLoader = async ({
@@ -22,15 +27,17 @@ export const automationLoader = async ({
   const tokens = await requireAuthTokens();
 
   try {
-    const [rule, timezones] = await Promise.all([
+    const [rule, timezones, credentials] = await Promise.all([
       fetchAutomationRule(),
       fetchAvailableTimezones(),
+      fetchAttendanceCredentials(),
     ]);
 
     return {
       tokens,
       rule,
       timezones,
+      credentials,
     };
   } catch (error) {
     if (error instanceof AuthorizationError) {

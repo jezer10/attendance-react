@@ -1,5 +1,6 @@
 import type {
   AutomationRule,
+  DayKey,
   PersistedAutomationPayload,
 } from "../components/automation/types";
 import { authorizedFetch } from "./auth";
@@ -32,31 +33,6 @@ type RawInput = {
     radiusMeters?: number;
   };
   timezone?: string;
-};
-
-type ParsedOutput = {
-  activo: boolean;
-  ventana_aleatoria_minutos?: number | null;
-  telefono?: string | null;
-  entrada: {
-    habilitado: boolean;
-    hora_local: string | null;
-    hora_utc: string | null;
-    dias: string[];
-  };
-  salida: {
-    habilitado: boolean;
-    hora_local: string | null;
-    hora_utc: string | null;
-    dias: string[];
-  };
-  ubicacion: {
-    direccion: string | null;
-    lat: number | null;
-    lng: number | null;
-    radio_metros: number | null;
-  };
-  zona_horaria: string | null;
 };
 
 const ISO_TO_DAY_KEY: Record<string, string> = {
@@ -93,15 +69,28 @@ const normalizeTime = (value?: string) => {
   return `${match[1]}:${match[2]}`;
 };
 
-const normalizeDays = (days?: Array<string | null>) => {
+const DAY_KEYS: ReadonlyArray<DayKey> = [
+  "Lun",
+  "Mar",
+  "Mie",
+  "Jue",
+  "Vie",
+  "Sab",
+  "Dom",
+];
+
+const isDayKey = (value: string): value is DayKey => DAY_KEYS.includes(value as DayKey);
+
+const normalizeDays = (days?: Array<string | null>): DayKey[] => {
   if (!Array.isArray(days)) return [];
   const mapped = days
     .filter((day): day is string => typeof day === "string" && day.trim() !== "")
-    .map((day) => ISO_TO_DAY_KEY[day] ?? day);
+    .map((day) => ISO_TO_DAY_KEY[day] ?? day)
+    .filter(isDayKey);
   return Array.from(new Set(mapped));
 };
 
-function _parseRule(data: RawInput): ParsedOutput {
+function _parseRule(data: RawInput): AutomationRule {
   const entry = data.schedule?.entry ?? {};
   const exit = data.schedule?.exit ?? {};
   const location = data.location ?? {};
@@ -123,7 +112,7 @@ function _parseRule(data: RawInput): ParsedOutput {
   };
 
   const address =
-    typeof location.address === "string" ? location.address.trim() : null;
+    typeof location.address === "string" ? location.address.trim() : "";
   const radiusMeters =
     location.radiusMeters ?? location.radius_meters ?? null;
 
@@ -134,13 +123,13 @@ function _parseRule(data: RawInput): ParsedOutput {
     telefono: normalizePhoneNumber(data.phoneNumber ?? data.phone_number) ?? null,
     entrada: {
       habilitado: normalizedEntry.habilitado,
-      hora_local: normalizedEntry.hora_local,
+      hora_local: normalizedEntry.hora_local ?? "",
       hora_utc: normalizedEntry.hora_utc,
       dias: normalizedEntry.dias,
     },
     salida: {
       habilitado: normalizedExit.habilitado,
-      hora_local: normalizedExit.hora_local,
+      hora_local: normalizedExit.hora_local ?? "",
       hora_utc: normalizedExit.hora_utc,
       dias: normalizedExit.dias,
     },
@@ -150,7 +139,7 @@ function _parseRule(data: RawInput): ParsedOutput {
       lng: location.longitude ?? null,
       radio_metros: radiusMeters,
     },
-    zona_horaria: data.timezone ?? null,
+    zona_horaria: data.timezone ?? "",
   };
 }
 
@@ -244,6 +233,65 @@ export const saveAutomationRule = async (
     },
     body: JSON.stringify(payload),
   });
+
+  await handleJson(response);
+};
+
+export interface AttendanceCredentialsPayload {
+  companyId: number;
+  userId: number;
+  password: string;
+}
+
+export interface AttendanceCredentialsMetadata {
+  companyId: number;
+  userId: number;
+  hasPassword: boolean;
+}
+
+export const fetchAttendanceCredentials = async (): Promise<
+  AttendanceCredentialsMetadata | null
+> => {
+  if (!API_BASE) {
+    return null;
+  }
+
+  const response = await authorizedFetch(
+    `${API_BASE}/api/v1/attendance/credentials`,
+    {
+      method: "GET",
+    }
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  return await handleJson(response);
+};
+
+export const saveAttendanceCredentials = async (
+  payload: AttendanceCredentialsPayload
+) => {
+  if (!API_BASE) {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    console.info("Guardar credenciales (mock)", {
+      companyId: payload.companyId,
+      userId: payload.userId,
+    });
+    return;
+  }
+
+  const response = await authorizedFetch(
+    `${API_BASE}/api/v1/attendance/credentials`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
 
   await handleJson(response);
 };

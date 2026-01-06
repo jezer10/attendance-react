@@ -45,7 +45,14 @@ const TimezoneSection = ({
   return (
     <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-semibold text-slate-900">Zona horaria</h2>
-      <Combobox value={timezone} onChange={onTimezoneChange}>
+      <Combobox
+        value={timezone}
+        onChange={(value) => {
+          if (value !== null) {
+            onTimezoneChange(value)
+          }
+        }}
+      >
         {({ open }) => (
           <>
             <Combobox.Label className="text-sm font-medium text-slate-700">

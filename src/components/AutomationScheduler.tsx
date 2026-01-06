@@ -7,6 +7,7 @@ import {
   getExampleNumber,
   parsePhoneNumberFromString,
 } from "libphonenumber-js";
+import type { CountryCode } from "libphonenumber-js";
 import countries from "i18n-iso-countries";
 import esCountries from "i18n-iso-countries/langs/es.json";
 import enCountries from "i18n-iso-countries/langs/en.json";
@@ -45,7 +46,7 @@ const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
 };
 
 type PhoneCountry = {
-  id: string;
+  id: CountryCode;
   label: string;
   dialCode: string;
 };
@@ -92,12 +93,26 @@ interface AutomationSchedulerProps {
   availableTimezones: string[];
   onSave?: (payload: PersistedAutomationPayload) => Promise<void>;
   onImmediateMark?: (action: "entrada" | "salida") => Promise<void>;
+  onSaveCredentials?: (payload: AttendanceCredentialsPayload) => Promise<void>;
+  initialCredentials?: AttendanceCredentialsMetadata | null;
+}
+
+interface AttendanceCredentialsPayload {
+  companyId: number;
+  userId: number;
+  password: string;
+}
+
+interface AttendanceCredentialsMetadata {
+  companyId: number;
+  userId: number;
+  hasPassword: boolean;
 }
 
 interface AutomationFormValues {
   isActive: boolean;
   randomWindowMinutes: number | null;
-  phoneCountry: string;
+  phoneCountry: CountryCode;
   phoneNumber: string;
   entry: AutomationBlock;
   exit: AutomationBlock;
@@ -110,7 +125,7 @@ interface AutomationFormValues {
   timezone: string;
 }
 
-const findPhoneCountry = (id?: string | null) =>
+const findPhoneCountry = (id?: CountryCode | null) =>
   PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === id);
 
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
@@ -168,6 +183,8 @@ const AutomationScheduler = ({
   availableTimezones,
   onSave,
   onImmediateMark,
+  onSaveCredentials,
+  initialCredentials,
 }: AutomationSchedulerProps) => {
   const {
     control,
@@ -189,13 +206,36 @@ const AutomationScheduler = ({
     type: "success" | "error";
     message: string;
   }>(null);
+  const [credentialsStatus, setCredentialsStatus] = useState<null | {
+    type: "success" | "error";
+    message: string;
+  }>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
   const [isMarking, setIsMarking] = useState<"entrada" | "salida" | null>(null);
   const [markFeedback, setMarkFeedback] = useState<null | {
     type: "success" | "error";
     message: string;
   }>(null);
   const [showValidation, setShowValidation] = useState(false);
+  const [showCredentialsValidation, setShowCredentialsValidation] =
+    useState(false);
+  const [credentialsErrors, setCredentialsErrors] = useState<{
+    companyId?: string;
+    userId?: string;
+    password?: string;
+  } | null>(null);
+  const [credentialsCompanyId, setCredentialsCompanyId] = useState(
+    initialCredentials?.companyId?.toString() ?? ""
+  );
+  const [credentialsUserId, setCredentialsUserId] = useState(
+    initialCredentials?.userId?.toString() ?? ""
+  );
+  const [credentialsPassword, setCredentialsPassword] = useState("");
+  const [showCredentialsPassword, setShowCredentialsPassword] = useState(false);
+  const [credentialsMetadata, setCredentialsMetadata] = useState<
+    AttendanceCredentialsMetadata | null
+  >(initialCredentials ?? null);
 
   const initialSnapshot = useRef<AutomationRule>(initialRule);
 
@@ -206,6 +246,15 @@ const AutomationScheduler = ({
     setSaveStatus(null);
     void trigger();
   }, [initialRule, reset, trigger]);
+
+  useEffect(() => {
+    if (!initialCredentials) {
+      return;
+    }
+    setCredentialsCompanyId(initialCredentials.companyId.toString());
+    setCredentialsUserId(initialCredentials.userId.toString());
+    setCredentialsMetadata(initialCredentials);
+  }, [initialCredentials]);
 
   const isActive = watch("isActive");
   const entry = watch("entry");
@@ -601,6 +650,7 @@ const AutomationScheduler = ({
       lat,
       lng,
       phoneDisplay,
+      phoneNumber,
       radius,
       randomWindowMinutes,
       timezone,
@@ -819,6 +869,85 @@ const AutomationScheduler = ({
     }
   };
 
+  const handleSaveCredentials = async () => {
+    setShowCredentialsValidation(true);
+    setCredentialsStatus(null);
+
+    const errors: {
+      companyId?: string;
+      userId?: string;
+      password?: string;
+    } = {};
+
+    const companyIdValue = Number(credentialsCompanyId);
+    if (
+      !credentialsCompanyId.trim() ||
+      Number.isNaN(companyIdValue) ||
+      !Number.isInteger(companyIdValue) ||
+      companyIdValue <= 0
+    ) {
+      errors.companyId = "Ingresa un ID de empresa válido.";
+    }
+
+    const userIdValue = Number(credentialsUserId);
+    if (
+      !credentialsUserId.trim() ||
+      Number.isNaN(userIdValue) ||
+      !Number.isInteger(userIdValue) ||
+      userIdValue <= 0
+    ) {
+      errors.userId = "Ingresa un ID de usuario válido.";
+    }
+
+    const passwordValue = credentialsPassword.trim();
+    if (!passwordValue) {
+      errors.password = "Ingresa la contraseña.";
+    }
+
+    setCredentialsErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    try {
+      setIsSavingCredentials(true);
+      const payload = {
+        companyId: companyIdValue,
+        userId: userIdValue,
+        password: passwordValue,
+      };
+      if (onSaveCredentials) {
+        await onSaveCredentials(payload);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        console.info("Guardar credenciales", {
+          companyId: payload.companyId,
+          userId: payload.userId,
+        });
+      }
+      setCredentialsStatus({
+        type: "success",
+        message: "Credenciales guardadas correctamente.",
+      });
+      setCredentialsPassword("");
+      setCredentialsMetadata({
+        companyId: payload.companyId,
+        userId: payload.userId,
+        hasPassword: true,
+      });
+    } catch (error) {
+      setCredentialsStatus({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudieron guardar las credenciales. Intenta nuevamente.",
+      });
+    } finally {
+      setIsSavingCredentials(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-8">
       {saveStatus && (
@@ -830,6 +959,18 @@ const AutomationScheduler = ({
           }`}
         >
           {saveStatus.message}
+        </div>
+      )}
+
+      {credentialsStatus && (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            credentialsStatus.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-rose-200 bg-rose-50 text-rose-800"
+          }`}
+        >
+          {credentialsStatus.message}
         </div>
       )}
 
@@ -983,7 +1124,7 @@ const AutomationScheduler = ({
                 <select
                   value={phoneCountryField.value}
                   onChange={(event) => {
-                    const nextCountry = event.target.value;
+                    const nextCountry = event.target.value as CountryCode;
                     phoneCountryField.onChange(nextCountry);
                     const digits = normalizePhoneDigits(phoneNumberField.value);
                     phoneNumberField.onChange(
@@ -1021,6 +1162,130 @@ const AutomationScheduler = ({
                 </p>
               )}
             </div>
+          </section>
+
+          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                Credenciales de marcación
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Se guardan de forma segura y se usan para realizar la marcación
+                automática.
+              </p>
+            </div>
+            {credentialsMetadata?.hasPassword ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                Credenciales guardadas para este usuario.
+              </div>
+            ) : (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Aún no has guardado credenciales para este usuario.
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  ID de empresa
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={credentialsCompanyId}
+                  onChange={(event) => {
+                    setCredentialsCompanyId(event.target.value);
+                    if (showCredentialsValidation) {
+                      setCredentialsErrors((current) => ({
+                        ...(current ?? {}),
+                        companyId: undefined,
+                      }));
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
+                  placeholder="Ej. 7040"
+                />
+                {showCredentialsValidation && credentialsErrors?.companyId && (
+                  <p className="text-sm text-rose-600">
+                    {credentialsErrors.companyId}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  ID de usuario
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={credentialsUserId}
+                  onChange={(event) => {
+                    setCredentialsUserId(event.target.value);
+                    if (showCredentialsValidation) {
+                      setCredentialsErrors((current) => ({
+                        ...(current ?? {}),
+                        userId: undefined,
+                      }));
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
+                  placeholder="Ej. 77668171"
+                />
+                {showCredentialsValidation && credentialsErrors?.userId && (
+                  <p className="text-sm text-rose-600">
+                    {credentialsErrors.userId}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Contraseña
+              </label>
+              <div className="relative">
+                <input
+                  type={showCredentialsPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={credentialsPassword}
+                  onChange={(event) => {
+                    setCredentialsPassword(event.target.value);
+                    if (showCredentialsValidation) {
+                      setCredentialsErrors((current) => ({
+                        ...(current ?? {}),
+                        password: undefined,
+                      }));
+                    }
+                  }}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-12 text-sm text-slate-700 shadow-sm"
+                  placeholder="Ingresa la contraseña"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowCredentialsPassword((current) => !current)
+                  }
+                  className="absolute inset-y-0 right-3 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                >
+                  {showCredentialsPassword ? "Ocultar" : "Mostrar"}
+                </button>
+              </div>
+              {showCredentialsValidation && credentialsErrors?.password && (
+                <p className="text-sm text-rose-600">
+                  {credentialsErrors.password}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveCredentials}
+              disabled={isSavingCredentials}
+              className="flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              {isSavingCredentials ? "Guardando…" : "Guardar credenciales"}
+            </button>
           </section>
 
           <LocationSection

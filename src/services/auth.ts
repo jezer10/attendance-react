@@ -21,6 +21,13 @@ export interface AuthTokens {
   expiresAt?: number;
 }
 
+interface AuthTokenPayload {
+  user_id: string;
+  access_token: string;
+  refresh_token: string;
+  token_type?: string;
+}
+
 const normalizeTokenType = (tokenType?: string) => {
   if (!tokenType) return "Bearer";
   if (tokenType.toLowerCase() === "bearer") return "Bearer";
@@ -72,7 +79,7 @@ const tokenIsExpired = (tokens: AuthTokens | null) => {
   return Date.now() >= tokens.expiresAt - 15_000;
 };
 
-const parseTokens = (payload: any): AuthTokens => ({
+const parseTokens = (payload: AuthTokenPayload): AuthTokens => ({
   userId: payload.user_id,
   accessToken: payload.access_token,
   refreshToken: payload.refresh_token,
@@ -96,7 +103,7 @@ export const authenticate = async (email: string, password: string) => {
     throw new Error(message);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as AuthTokenPayload;
   const tokens = parseTokens(data);
   persistTokens(tokens);
   return tokens;
@@ -122,14 +129,14 @@ export const refreshSession = async (
     return null;
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as AuthTokenPayload;
   const tokens = parseTokens(data);
   persistTokens(tokens);
   return tokens;
 };
 
 export const ensureAuthTokens = async (): Promise<AuthTokens> => {
-  let tokens = getStoredTokens();
+  const tokens = getStoredTokens();
 
   if (!tokens) {
     const refreshed = await refreshSession();
