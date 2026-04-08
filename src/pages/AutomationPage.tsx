@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
 import {
   useAutomationRule,
   useAvailableTimezones,
@@ -6,18 +8,43 @@ import {
   useSaveAttendanceCredentials,
   useAttendanceCredentials,
 } from "../features/automation";
+import { AuthorizationError } from "../features/auth/services/authService";
 import AutomationScheduler from "../features/automation/components/AutomationScheduler";
 
 const EMPTY_ARRAY: string[] = [];
 
 const AutomationPage = () => {
-  const { data: rule, isLoading: isLoadingRule } = useAutomationRule();
-  const { data: timezones, isLoading: isLoadingTimezones } = useAvailableTimezones();
-  const { data: credentials, isLoading: isLoadingCredentials } = useAttendanceCredentials();
+  const navigate = useNavigate();
+  const { 
+    data: rule, 
+    isLoading: isLoadingRule, 
+    error: errorRule 
+  } = useAutomationRule();
+  const { 
+    data: timezones, 
+    isLoading: isLoadingTimezones, 
+    error: errorTimezones 
+  } = useAvailableTimezones();
+  const { 
+    data: credentials, 
+    isLoading: isLoadingCredentials, 
+    error: errorCredentials 
+  } = useAttendanceCredentials();
 
   const { mutateAsync: saveRule } = useSaveAutomation();
   const { mutateAsync: markNow } = useManualActionToken();
   const { mutateAsync: saveCredentials } = useSaveAttendanceCredentials();
+
+  useEffect(() => {
+    const hasAuthError = 
+      errorRule instanceof AuthorizationError || 
+      errorTimezones instanceof AuthorizationError || 
+      errorCredentials instanceof AuthorizationError;
+
+    if (hasAuthError) {
+      navigate("/login");
+    }
+  }, [errorRule, errorTimezones, errorCredentials, navigate]);
 
   if (isLoadingRule || isLoadingTimezones || isLoadingCredentials) {
     return (
