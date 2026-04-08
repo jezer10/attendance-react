@@ -1,17 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useController, useForm } from "react-hook-form";
-import {
-  AsYouType,
-  getCountries,
-  getCountryCallingCode,
-  getExampleNumber,
-  parsePhoneNumberFromString,
-} from "libphonenumber-js";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type { CountryCode } from "libphonenumber-js";
-import countries from "i18n-iso-countries";
-import esCountries from "i18n-iso-countries/langs/es.json";
-import enCountries from "i18n-iso-countries/langs/en.json";
-import examples from "libphonenumber-js/examples.mobile.json";
 
 import ActionsPanel from "./automation/ActionsPanel";
 import LocationSection from "./automation/LocationSection";
@@ -19,6 +9,9 @@ import ScheduleBlock from "./automation/ScheduleBlock";
 import SummaryCard from "./automation/SummaryCard";
 import TimezoneSection from "./automation/TimezoneSection";
 import Toggle from "./automation/Toggle";
+import CredentialsSection from "./automation/CredentialsSection";
+import PhoneNumberSection from "./automation/PhoneNumberSection";
+import RandomWindowSection from "./automation/RandomWindowSection";
 import { DAYS } from "./automation/constants";
 import type {
   AutomationBlock,
@@ -45,14 +38,19 @@ const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Dom: "sunday",
 };
 
-type PhoneCountry = {
-  id: CountryCode;
-  label: string;
-  dialCode: string;
-};
+import { getCountries, getCountryCallingCode } from "libphonenumber-js";
+import countries from "i18n-iso-countries";
+import esCountries from "i18n-iso-countries/langs/es.json";
+import enCountries from "i18n-iso-countries/langs/en.json";
 
 countries.registerLocale(esCountries);
 countries.registerLocale(enCountries);
+
+interface PhoneCountry {
+  id: CountryCode;
+  label: string;
+  dialCode: string;
+}
 
 const buildPhoneCountries = (): PhoneCountry[] => {
   const regions = getCountries();
@@ -74,19 +72,17 @@ const buildPhoneCountries = (): PhoneCountry[] => {
     .sort((a, b) => a.label.localeCompare(b.label, "es"));
 };
 
-const FALLBACK_COUNTRY: PhoneCountry = {
-  id: "PE",
-  label: "Perú",
-  dialCode: "51",
-};
-
 const PHONE_COUNTRIES = buildPhoneCountries();
 const PHONE_COUNTRIES_WITH_FALLBACK =
-  PHONE_COUNTRIES.length > 0 ? PHONE_COUNTRIES : [FALLBACK_COUNTRY];
+  PHONE_COUNTRIES.length > 0 ? PHONE_COUNTRIES : [{
+    id: "PE" as CountryCode,
+    label: "Perú",
+    dialCode: "51",
+  }];
 const DEFAULT_PHONE_COUNTRY =
   PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === "PE") ??
   PHONE_COUNTRIES_WITH_FALLBACK[0];
-const MAX_NATIONAL_LENGTH = 15;
+
 
 interface AutomationSchedulerProps {
   initialRule: AutomationRule;
@@ -199,40 +195,18 @@ const AutomationScheduler = ({
     defaultValues: toFormValues(initialRule),
   });
 
-  const [geolocationLoading, setGeolocationLoading] = useState(false);
-  const [geolocationError, setGeolocationError] = useState<string | null>(null);
-
   const [saveStatus, setSaveStatus] = useState<null | {
     type: "success" | "error";
     message: string;
   }>(null);
-  const [credentialsStatus, setCredentialsStatus] = useState<null | {
-    type: "success" | "error";
-    message: string;
-  }>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
   const [isMarking, setIsMarking] = useState<"entrada" | "salida" | null>(null);
   const [markFeedback, setMarkFeedback] = useState<null | {
     type: "success" | "error";
     message: string;
   }>(null);
   const [showValidation, setShowValidation] = useState(false);
-  const [showCredentialsValidation, setShowCredentialsValidation] =
-    useState(false);
-  const [credentialsErrors, setCredentialsErrors] = useState<{
-    companyId?: string;
-    userId?: string;
-    password?: string;
-  } | null>(null);
-  const [credentialsCompanyId, setCredentialsCompanyId] = useState(
-    initialCredentials?.companyId?.toString() ?? ""
-  );
-  const [credentialsUserId, setCredentialsUserId] = useState(
-    initialCredentials?.userId?.toString() ?? ""
-  );
-  const [credentialsPassword, setCredentialsPassword] = useState("");
-  const [showCredentialsPassword, setShowCredentialsPassword] = useState(false);
+
   const [credentialsMetadata, setCredentialsMetadata] = useState<
     AttendanceCredentialsMetadata | null
   >(initialCredentials ?? null);
@@ -251,8 +225,6 @@ const AutomationScheduler = ({
     if (!initialCredentials) {
       return;
     }
-    setCredentialsCompanyId(initialCredentials.companyId.toString());
-    setCredentialsUserId(initialCredentials.userId.toString());
     setCredentialsMetadata(initialCredentials);
   }, [initialCredentials]);
 
@@ -281,13 +253,16 @@ const AutomationScheduler = ({
     exit.habilitado,
     trigger,
   ]);
-  const { field: addressField } = useController({
+  const {
+    field: addressField,
+    fieldState: { error: addressError },
+  } = useController({
     control,
     name: "location.address",
   });
   const {
     field: latField,
-    fieldState: { error: latFieldError },
+    fieldState: { error: locationError },
   } = useController({
     control,
     name: "location.lat",
@@ -474,55 +449,29 @@ const AutomationScheduler = ({
     return exit.hora_utc ?? null;
   }, [exit.habilitado, exit.hora_local, exit.hora_utc, offsetMinutes]);
 
-  const randomWindowErrorMessage =
-    typeof randomWindowError?.message === "string"
-      ? randomWindowError.message
-      : undefined;
-
-  const phoneNumberErrorMessage =
-    typeof phoneNumberError?.message === "string"
-      ? phoneNumberError.message
-      : undefined;
-
-  const formattedPhoneNumber = useMemo(() => {
-    const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
-    if (!phoneNumber) return "";
-    return new AsYouType(country.id).input(phoneNumber) || phoneNumber;
-  }, [phoneCountry, phoneNumber]);
-
-  const phonePlaceholder = useMemo(() => {
-    const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
-    try {
-      const example = getExampleNumber(country.id, examples);
-      if (example) {
-        return example.formatNational();
-      }
-    } catch {
-      // Keep fallback placeholder.
-    }
-    return "123 456 789";
-  }, [phoneCountry]);
-
   const phoneDisplay = useMemo(() => {
     if (!phoneNumber.trim()) return "";
-    const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
     try {
-      const parsed = parsePhoneNumberFromString(phoneNumber, country.id);
-      return parsed?.formatInternational() ?? phoneNumber;
+      const parsed = parsePhoneNumberFromString(phoneNumber, findPhoneCountry(phoneCountry)?.id);
+      if (parsed) return parsed.formatInternational();
     } catch {
-      return `+${country.dialCode} ${formattedPhoneNumber}`.trim();
+      // ignore
     }
-  }, [formattedPhoneNumber, phoneCountry, phoneNumber]);
+    return phoneNumber;
+  }, [phoneNumber, phoneCountry]);
 
   const timezoneErrorMessage =
     typeof timezoneError?.message === "string"
       ? timezoneError.message
       : undefined;
 
-  const locationErrors: string[] = useMemo(() => {
+  const locationErrors = useMemo(() => {
     const messages = new Set<string>();
-    if (typeof latFieldError?.message === "string") {
-      messages.add(latFieldError.message);
+    if (typeof addressError?.message === "string") {
+      messages.add(addressError.message);
+    }
+    if (typeof locationError?.message === "string") {
+      messages.add(locationError.message);
     }
     if (typeof lngFieldError?.message === "string") {
       messages.add(lngFieldError.message);
@@ -532,7 +481,8 @@ const AutomationScheduler = ({
     }
     return Array.from(messages);
   }, [
-    latFieldError?.message,
+    addressError?.message,
+    locationError?.message,
     lngFieldError?.message,
     radiusFieldError?.message,
   ]);
@@ -562,23 +512,23 @@ const AutomationScheduler = ({
   const blockingReasons = useMemo(() => {
     const reasons: string[] = [];
     reasons.push(...entryErrors, ...exitErrors, ...locationErrors);
-    if (randomWindowErrorMessage) {
-      reasons.push(randomWindowErrorMessage);
+    if (randomWindowError?.message) {
+      reasons.push(randomWindowError.message);
     }
-    if (phoneNumberErrorMessage) {
-      reasons.push(phoneNumberErrorMessage);
+    if (phoneNumberError?.message) {
+      reasons.push(phoneNumberError.message);
     }
-    if (timezoneErrorMessage) {
-      reasons.push(timezoneErrorMessage);
+    if (timezoneError?.message) {
+      reasons.push(timezoneError.message);
     }
     return Array.from(new Set(reasons));
   }, [
     entryErrors,
     exitErrors,
     locationErrors,
-    phoneNumberErrorMessage,
-    randomWindowErrorMessage,
-    timezoneErrorMessage,
+    phoneNumberError?.message,
+    randomWindowError?.message,
+    timezoneError?.message,
   ]);
 
   const canSave = isValid && !isSaving;
@@ -680,31 +630,6 @@ const AutomationScheduler = ({
   const handleExitEnabledChange = (value: boolean) => {
     exitEnabledField.onChange(value);
     void trigger(["exit.hora_local", "exit.dias"]);
-  };
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setGeolocationError("Tu navegador no admite geolocalización.");
-      return;
-    }
-
-    setGeolocationLoading(true);
-    setGeolocationError(null);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        latField.onChange(latitude);
-        lngField.onChange(longitude);
-        setGeolocationLoading(false);
-      },
-      (error) => {
-        setGeolocationLoading(false);
-        setGeolocationError(
-          error.message || "No se pudo obtener tu ubicación actual."
-        );
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
   const normalizeBlock = (
@@ -869,88 +794,15 @@ const AutomationScheduler = ({
     }
   };
 
-  const handleSaveCredentials = async () => {
-    setShowCredentialsValidation(true);
-    setCredentialsStatus(null);
-
-    const errors: {
-      companyId?: string;
-      userId?: string;
-      password?: string;
-    } = {};
-
-    const companyIdValue = Number(credentialsCompanyId);
-    if (
-      !credentialsCompanyId.trim() ||
-      Number.isNaN(companyIdValue) ||
-      !Number.isInteger(companyIdValue) ||
-      companyIdValue <= 0
-    ) {
-      errors.companyId = "Ingresa un ID de empresa válido.";
-    }
-
-    const userIdValue = Number(credentialsUserId);
-    if (
-      !credentialsUserId.trim() ||
-      Number.isNaN(userIdValue) ||
-      !Number.isInteger(userIdValue) ||
-      userIdValue <= 0
-    ) {
-      errors.userId = "Ingresa un ID de usuario válido.";
-    }
-
-    const passwordValue = credentialsPassword.trim();
-    if (!passwordValue) {
-      errors.password = "Ingresa la contraseña.";
-    }
-
-    setCredentialsErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
-
-    try {
-      setIsSavingCredentials(true);
-      const payload = {
-        companyId: companyIdValue,
-        userId: userIdValue,
-        password: passwordValue,
-      };
-      if (onSaveCredentials) {
-        await onSaveCredentials(payload);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        console.info("Guardar credenciales", {
-          companyId: payload.companyId,
-          userId: payload.userId,
-        });
-      }
-      setCredentialsStatus({
-        type: "success",
-        message: "Credenciales guardadas correctamente.",
-      });
-      setCredentialsPassword("");
-      setCredentialsMetadata({
-        companyId: payload.companyId,
-        userId: payload.userId,
-        hasPassword: true,
-      });
-    } catch (error) {
-      setCredentialsStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron guardar las credenciales. Intenta nuevamente.",
-      });
-    } finally {
-      setIsSavingCredentials(false);
+  const handleCredentialsSave = async (payload: AttendanceCredentialsPayload) => {
+    if (onSaveCredentials) {
+      await onSaveCredentials(payload);
     }
   };
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-8">
-      {saveStatus && (
+      {saveStatus ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
             saveStatus.type === "success"
@@ -960,21 +812,9 @@ const AutomationScheduler = ({
         >
           {saveStatus.message}
         </div>
-      )}
+      ) : null}
 
-      {credentialsStatus && (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            credentialsStatus.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
-        >
-          {credentialsStatus.message}
-        </div>
-      )}
-
-      {markFeedback && (
+      {markFeedback ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
             markFeedback.type === "success"
@@ -984,7 +824,7 @@ const AutomationScheduler = ({
         >
           {markFeedback.message}
         </div>
-      )}
+      ) : null}
 
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -1069,224 +909,28 @@ const AutomationScheduler = ({
             </div>
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Ventana aleatoria
-            </h2>
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700">
-                Minutos de variación
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={1}
-                value={
-                  randomWindowField.value === null
-                    ? ""
-                    : randomWindowField.value
-                }
-                onChange={(event) => {
-                  const nextValue = event.target.value;
-                  if (!nextValue.trim()) {
-                    randomWindowField.onChange(null);
-                    return;
-                  }
-                  const parsed = Number(nextValue);
-                  randomWindowField.onChange(
-                    Number.isNaN(parsed) ? null : parsed
-                  );
-                }}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-                placeholder="0"
-              />
-              <p className="text-sm text-slate-500">
-                Define un rango aleatorio en minutos para adelantar o atrasar la
-                marcación.
-              </p>
-              {showValidation && randomWindowErrorMessage && (
-                <p className="text-sm text-rose-600">
-                  {randomWindowErrorMessage}
-                </p>
-              )}
-            </div>
-          </section>
+          <RandomWindowSection
+            value={randomWindowField.value}
+            onChange={(value) => randomWindowField.onChange(value)}
+            showValidation={showValidation}
+            error={randomWindowError?.message}
+          />
 
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Teléfono de contacto
-            </h2>
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-slate-700">
-                País y número
-              </label>
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
-                <select
-                  value={phoneCountryField.value}
-                  onChange={(event) => {
-                    const nextCountry = event.target.value as CountryCode;
-                    phoneCountryField.onChange(nextCountry);
-                    const digits = normalizePhoneDigits(phoneNumberField.value);
-                    phoneNumberField.onChange(
-                      digits.slice(0, MAX_NATIONAL_LENGTH)
-                    );
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-                >
-                  {PHONE_COUNTRIES_WITH_FALLBACK.map((country) => (
-                    <option key={country.id} value={country.id}>
-                      {country.label} (+{country.dialCode})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={formattedPhoneNumber}
-                  onChange={(event) => {
-                    const digits = normalizePhoneDigits(event.target.value);
-                    phoneNumberField.onChange(
-                      digits.slice(0, MAX_NATIONAL_LENGTH)
-                    );
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-                  placeholder={phonePlaceholder}
-                />
-              </div>
-              <p className="text-sm text-slate-500">
-                Ingresa el número local y selecciona el país.
-              </p>
-              {showValidation && phoneNumberErrorMessage && (
-                <p className="text-sm text-rose-600">
-                  {phoneNumberErrorMessage}
-                </p>
-              )}
-            </div>
-          </section>
+          <PhoneNumberSection
+            phoneCountries={PHONE_COUNTRIES_WITH_FALLBACK}
+            selectedCountry={phoneCountryField.value}
+            phoneNumber={phoneNumberField.value}
+            onCountryChange={(country) => phoneCountryField.onChange(country)}
+            onNumberChange={(number) => phoneNumberField.onChange(number)}
+            showValidation={showValidation}
+            error={phoneNumberError?.message}
+          />
 
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Credenciales de marcación
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Se guardan de forma segura y se usan para realizar la marcación
-                automática.
-              </p>
-            </div>
-            {credentialsMetadata?.hasPassword ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                Credenciales guardadas para este usuario.
-              </div>
-            ) : (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                Aún no has guardado credenciales para este usuario.
-              </div>
-            )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  ID de empresa
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  value={credentialsCompanyId}
-                  onChange={(event) => {
-                    setCredentialsCompanyId(event.target.value);
-                    if (showCredentialsValidation) {
-                      setCredentialsErrors((current) => ({
-                        ...(current ?? {}),
-                        companyId: undefined,
-                      }));
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-                  placeholder="Ej. 7040"
-                />
-                {showCredentialsValidation && credentialsErrors?.companyId && (
-                  <p className="text-sm text-rose-600">
-                    {credentialsErrors.companyId}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  ID de usuario
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  step={1}
-                  inputMode="numeric"
-                  value={credentialsUserId}
-                  onChange={(event) => {
-                    setCredentialsUserId(event.target.value);
-                    if (showCredentialsValidation) {
-                      setCredentialsErrors((current) => ({
-                        ...(current ?? {}),
-                        userId: undefined,
-                      }));
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-                  placeholder="Ej. 77668171"
-                />
-                {showCredentialsValidation && credentialsErrors?.userId && (
-                  <p className="text-sm text-rose-600">
-                    {credentialsErrors.userId}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Contraseña
-              </label>
-              <div className="relative">
-                <input
-                  type={showCredentialsPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  value={credentialsPassword}
-                  onChange={(event) => {
-                    setCredentialsPassword(event.target.value);
-                    if (showCredentialsValidation) {
-                      setCredentialsErrors((current) => ({
-                        ...(current ?? {}),
-                        password: undefined,
-                      }));
-                    }
-                  }}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-12 text-sm text-slate-700 shadow-sm"
-                  placeholder="Ingresa la contraseña"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowCredentialsPassword((current) => !current)
-                  }
-                  className="absolute inset-y-0 right-3 text-xs font-semibold text-slate-500 hover:text-slate-700"
-                >
-                  {showCredentialsPassword ? "Ocultar" : "Mostrar"}
-                </button>
-              </div>
-              {showCredentialsValidation && credentialsErrors?.password && (
-                <p className="text-sm text-rose-600">
-                  {credentialsErrors.password}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={handleSaveCredentials}
-              disabled={isSavingCredentials}
-              className="flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              {isSavingCredentials ? "Guardando…" : "Guardar credenciales"}
-            </button>
-          </section>
+          <CredentialsSection
+            initialCredentials={credentialsMetadata}
+            onSave={handleCredentialsSave}
+            isSaving={isSaving}
+          />
 
           <LocationSection
             address={addressField.value}
@@ -1299,10 +943,9 @@ const AutomationScheduler = ({
               lngField.onChange(newLng);
             }}
             onRadiusChange={(value) => radiusField.onChange(value)}
-            onUseCurrentLocation={handleUseCurrentLocation}
-            geolocationLoading={geolocationLoading}
-            geolocationError={geolocationError}
-            validationErrors={locationErrors}
+            validationErrors={
+              locationError?.message ? [locationError.message] : []
+            }
             showValidation={showValidation}
           />
 

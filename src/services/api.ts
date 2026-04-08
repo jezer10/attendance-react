@@ -98,7 +98,7 @@ function _parseRule(data: RawInput): AutomationRule {
   // normalizar entrada
   const normalizedEntry = {
     habilitado: entry.enabled ?? false,
-    hora_local: normalizeTime(entry.localTime ?? entry.local_time) ?? null,
+    hora_local: normalizeTime(entry.localTime ?? entry.local_time) ?? "",
     hora_utc: normalizeTime(entry.utcTime ?? entry.utc_time) ?? null,
     dias: normalizeDays(entry.days),
   };
@@ -106,7 +106,7 @@ function _parseRule(data: RawInput): AutomationRule {
   // normalizar salida
   const normalizedExit = {
     habilitado: exit.enabled ?? false,
-    hora_local: normalizeTime(exit.localTime ?? exit.local_time) ?? null,
+    hora_local: normalizeTime(exit.localTime ?? exit.local_time) ?? "",
     hora_utc: normalizeTime(exit.utcTime ?? exit.utc_time) ?? null,
     dias: normalizeDays(exit.days),
   };
@@ -121,18 +121,8 @@ function _parseRule(data: RawInput): AutomationRule {
     ventana_aleatoria_minutos:
       data.randomWindowMinutes ?? data.random_window_minutes ?? null,
     telefono: normalizePhoneNumber(data.phoneNumber ?? data.phone_number) ?? null,
-    entrada: {
-      habilitado: normalizedEntry.habilitado,
-      hora_local: normalizedEntry.hora_local ?? "",
-      hora_utc: normalizedEntry.hora_utc,
-      dias: normalizedEntry.dias,
-    },
-    salida: {
-      habilitado: normalizedExit.habilitado,
-      hora_local: normalizedExit.hora_local ?? "",
-      hora_utc: normalizedExit.hora_utc,
-      dias: normalizedExit.dias,
-    },
+    entrada: normalizedEntry,
+    salida: normalizedExit,
     ubicacion: {
       direccion: address,
       lat: location.latitude ?? null,
