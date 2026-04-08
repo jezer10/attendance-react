@@ -4,19 +4,18 @@ import { DEFAULT_POSITION } from './constants'
 const LocationMap = lazy(() => import('./LocationMap'))
 
 interface LocationSectionProps {
-  address: string
-  onAddressChange: (value: string) => void
-  lat: number | null
-  lng: number | null
-  radius: number | null
-  onPositionChange: (coords: { lat: number; lng: number }) => void
-  onRadiusChange: (value: number | null) => void
-  onUseCurrentLocation: () => void
-  geolocationLoading: boolean
-  geolocationError: string | null
-  validationErrors: string[]
-  showValidation: boolean
+  address: string;
+  onAddressChange: (value: string) => void;
+  lat: number | null;
+  lng: number | null;
+  radius: number | null;
+  onPositionChange: (coords: { lat: number; lng: number }) => void;
+  onRadiusChange: (value: number | null) => void;
+  validationErrors: string[];
+  showValidation: boolean;
 }
+
+import { useState } from "react";
 
 const LocationSection = ({
   address,
@@ -26,14 +25,42 @@ const LocationSection = ({
   radius,
   onPositionChange,
   onRadiusChange,
-  onUseCurrentLocation,
-  geolocationLoading,
-  geolocationError,
   validationErrors,
   showValidation,
 }: LocationSectionProps) => {
-  const effectiveLat = lat ?? DEFAULT_POSITION[0]
-  const effectiveLng = lng ?? DEFAULT_POSITION[1]
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUseCurrentLocation = () => {
+    setError(null);
+    if (!navigator.geolocation) {
+      setError("Tu navegador no soporta geolocalización.");
+      return;
+    }
+
+    setLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        onPositionChange({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+        setLoading(false);
+      },
+      (err) => {
+        let msg = "No se pudo obtener la ubicación.";
+        if (err.code === err.PERMISSION_DENIED) {
+          msg = "Permiso de ubicación denegado.";
+        }
+        setError(msg);
+        setLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const effectiveLat = lat ?? DEFAULT_POSITION[0];
+  const effectiveLng = lng ?? DEFAULT_POSITION[1];
 
   return (
     <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -64,11 +91,11 @@ const LocationSection = ({
           </span>
           <button
             type="button"
-            onClick={onUseCurrentLocation}
-            disabled={geolocationLoading}
+            onClick={handleUseCurrentLocation}
+            disabled={loading}
             className="inline-flex items-center justify-center rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {geolocationLoading ? 'Obteniendo ubicación…' : 'Usar mi ubicación actual'}
+            {loading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
           </button>
         </div>
 
@@ -80,9 +107,9 @@ const LocationSection = ({
           />
         </Suspense>
 
-        {geolocationError && (
-          <p className="text-sm text-amber-600">{geolocationError}</p>
-        )}
+        {error ? (
+          <p className="text-sm text-amber-600">{error}</p>
+        ) : null}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -111,13 +138,13 @@ const LocationSection = ({
         </div>
       </div>
 
-      {showValidation && validationErrors.length > 0 && (
+      {showValidation && validationErrors.length > 0 ? (
         <ul className="space-y-1 text-sm text-rose-600">
           {validationErrors.map((error) => (
             <li key={error}>• {error}</li>
           ))}
         </ul>
-      )}
+      ) : null}
     </section>
   )
 }

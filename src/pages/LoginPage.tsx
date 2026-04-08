@@ -114,11 +114,11 @@ const LoginPage = () => {
                   })}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                 />
-                {errors.email && (
+                {errors.email ? (
                   <p className="text-xs text-rose-600">
                     {errors.email.message}
                   </p>
-                )}
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -152,18 +152,20 @@ const LoginPage = () => {
                     {showPassword ? "Ocultar" : "Mostrar"}
                   </button>
                 </div>
-                {errors.password && (
+                {errors.password ? (
                   <p className="text-xs text-rose-600">
                     {errors.password.message}
                   </p>
-                )}
+                ) : null}
               </div>
 
-                {loginError && (
+              {loginError ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {loginError instanceof Error ? loginError.message : "Error al iniciar sesión"}
+                  {loginError instanceof Error
+                    ? loginError.message
+                    : "Error al iniciar sesión"}
                 </div>
-              )}
+              ) : null}
 
               <button
                 type="submit"
