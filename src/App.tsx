@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
-import { logout } from "./services/auth";
+import { logout } from "./features/auth";
 
 const App = () => (
   <Layout />

@@ -1,9 +1,6 @@
 import { createBrowserRouter } from "react-router";
 
 import App from "./App";
-import AutomationPage from "./pages/AutomationPage";
-import LoginPage from "./pages/LoginPage";
-import { automationLoader } from "./routes/automation";
 
 const router = createBrowserRouter([
   {
@@ -12,12 +9,18 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        loader: automationLoader,
-        element: <AutomationPage />,
+        lazy: async () => {
+          const { default: Component } = await import("./pages/AutomationPage");
+          const { automationLoader: loader } = await import("./routes/automation");
+          return { Component, loader };
+        },
       },
       {
         path: "login",
-        element: <LoginPage />,
+        lazy: async () => {
+          const { default: Component } = await import("./pages/LoginPage");
+          return { Component };
+        },
       },
     ],
   },

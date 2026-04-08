@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useController, useForm } from "react-hook-form";
 import {
   AsYouType,
@@ -13,13 +13,13 @@ import esCountries from "i18n-iso-countries/langs/es.json";
 import enCountries from "i18n-iso-countries/langs/en.json";
 import examples from "libphonenumber-js/examples.mobile.json";
 
-import ActionsPanel from "./automation/ActionsPanel";
-import LocationSection from "./automation/LocationSection";
-import ScheduleBlock from "./automation/ScheduleBlock";
-import SummaryCard from "./automation/SummaryCard";
-import TimezoneSection from "./automation/TimezoneSection";
-import Toggle from "./automation/Toggle";
-import { DAYS } from "./automation/constants";
+import ActionsPanel from "./ActionsPanel";
+import LocationSection from "./LocationSection";
+import ScheduleBlock from "./ScheduleBlock";
+import SummaryCard from "./SummaryCard";
+import TimezoneSection from "./TimezoneSection";
+import Toggle from "./Toggle";
+import { DAYS } from "./constants";
 import type {
   AutomationBlock,
   AutomationPayload,
@@ -27,13 +27,13 @@ import type {
   DayKey,
   IsoDay,
   PersistedAutomationPayload,
-} from "./automation/types";
+} from "./types";
 import {
   extractOffsetMinutes,
   formatDays,
   isValidTime,
   toUtcTime,
-} from "./automation/utils";
+} from "./utils";
 
 const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Lun: "monday",
@@ -86,6 +86,10 @@ const PHONE_COUNTRIES_WITH_FALLBACK =
 const DEFAULT_PHONE_COUNTRY =
   PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === "PE") ??
   PHONE_COUNTRIES_WITH_FALLBACK[0];
+
+const PHONE_COUNTRIES_MAP = new Map(
+  PHONE_COUNTRIES_WITH_FALLBACK.map((c) => [c.id, c])
+);
 const MAX_NATIONAL_LENGTH = 15;
 
 interface AutomationSchedulerProps {
@@ -126,7 +130,7 @@ interface AutomationFormValues {
 }
 
 const findPhoneCountry = (id?: CountryCode | null) =>
-  PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === id);
+  id ? PHONE_COUNTRIES_MAP.get(id) : undefined;
 
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -950,7 +954,7 @@ const AutomationScheduler = ({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-8">
-      {saveStatus && (
+      {saveStatus ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
             saveStatus.type === "success"
@@ -960,9 +964,9 @@ const AutomationScheduler = ({
         >
           {saveStatus.message}
         </div>
-      )}
+      ) : null}
 
-      {credentialsStatus && (
+      {credentialsStatus ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
             credentialsStatus.type === "success"
@@ -972,9 +976,9 @@ const AutomationScheduler = ({
         >
           {credentialsStatus.message}
         </div>
-      )}
+      ) : null}
 
-      {markFeedback && (
+      {markFeedback ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
             markFeedback.type === "success"
@@ -984,7 +988,7 @@ const AutomationScheduler = ({
         >
           {markFeedback.message}
         </div>
-      )}
+      ) : null}
 
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -1104,11 +1108,11 @@ const AutomationScheduler = ({
                 Define un rango aleatorio en minutos para adelantar o atrasar la
                 marcación.
               </p>
-              {showValidation && randomWindowErrorMessage && (
+              {showValidation && randomWindowErrorMessage ? (
                 <p className="text-sm text-rose-600">
                   {randomWindowErrorMessage}
                 </p>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -1156,11 +1160,11 @@ const AutomationScheduler = ({
               <p className="text-sm text-slate-500">
                 Ingresa el número local y selecciona el país.
               </p>
-              {showValidation && phoneNumberErrorMessage && (
+              {showValidation && phoneNumberErrorMessage ? (
                 <p className="text-sm text-rose-600">
                   {phoneNumberErrorMessage}
                 </p>
-              )}
+              ) : null}
             </div>
           </section>
 
@@ -1206,11 +1210,11 @@ const AutomationScheduler = ({
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
                   placeholder="Ej. 7040"
                 />
-                {showCredentialsValidation && credentialsErrors?.companyId && (
+                {showCredentialsValidation && credentialsErrors?.companyId ? (
                   <p className="text-sm text-rose-600">
                     {credentialsErrors.companyId}
                   </p>
-                )}
+                ) : null}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
@@ -1234,11 +1238,11 @@ const AutomationScheduler = ({
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
                   placeholder="Ej. 77668171"
                 />
-                {showCredentialsValidation && credentialsErrors?.userId && (
+                {showCredentialsValidation && credentialsErrors?.userId ? (
                   <p className="text-sm text-rose-600">
                     {credentialsErrors.userId}
                   </p>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="space-y-2">
@@ -1272,11 +1276,11 @@ const AutomationScheduler = ({
                   {showCredentialsPassword ? "Ocultar" : "Mostrar"}
                 </button>
               </div>
-              {showCredentialsValidation && credentialsErrors?.password && (
+              {showCredentialsValidation && credentialsErrors?.password ? (
                 <p className="text-sm text-rose-600">
                   {credentialsErrors.password}
                 </p>
-              )}
+              ) : null}
             </div>
             <button
               type="button"
@@ -1334,4 +1338,4 @@ const AutomationScheduler = ({
 };
 
 export type { AutomationRule, AutomationPayload, PersistedAutomationPayload };
-export default AutomationScheduler;
+export default memo(AutomationScheduler);

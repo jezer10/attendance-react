@@ -2,8 +2,8 @@ import type {
   AutomationRule,
   DayKey,
   PersistedAutomationPayload,
-} from "../components/automation/types";
-import { authorizedFetch } from "./auth";
+} from "../components/types";
+import { authorizedFetch } from "../../auth/services/authService";
 
 type RawScheduleEntry = {
   enabled?: boolean;
