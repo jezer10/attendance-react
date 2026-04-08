@@ -1,5 +1,7 @@
+import { Suspense, lazy } from 'react'
 import { DEFAULT_POSITION } from './constants'
-import LocationMap from './LocationMap'
+
+const LocationMap = lazy(() => import('./LocationMap'))
 
 interface LocationSectionProps {
   address: string;
@@ -97,11 +99,13 @@ const LocationSection = ({
           </button>
         </div>
 
-        <LocationMap
-          position={[effectiveLat, effectiveLng]}
-          radius={radius}
-          onPositionChange={onPositionChange}
-        />
+        <Suspense fallback={<div className="h-64 w-full animate-pulse rounded-xl border border-slate-200 bg-slate-50" />}>
+          <LocationMap
+            position={[effectiveLat, effectiveLng]}
+            radius={radius}
+            onPositionChange={onPositionChange}
+          />
+        </Suspense>
 
         {error ? (
           <p className="text-sm text-amber-600">{error}</p>

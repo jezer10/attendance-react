@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useController, useForm } from "react-hook-form";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type { CountryCode } from "libphonenumber-js";
 
-import ActionsPanel from "./automation/ActionsPanel";
-import LocationSection from "./automation/LocationSection";
-import ScheduleBlock from "./automation/ScheduleBlock";
-import SummaryCard from "./automation/SummaryCard";
-import TimezoneSection from "./automation/TimezoneSection";
-import Toggle from "./automation/Toggle";
-import CredentialsSection from "./automation/CredentialsSection";
-import PhoneNumberSection from "./automation/PhoneNumberSection";
-import RandomWindowSection from "./automation/RandomWindowSection";
-import { DAYS } from "./automation/constants";
+import ActionsPanel from "./ActionsPanel";
+import LocationSection from "./LocationSection";
+import ScheduleBlock from "./ScheduleBlock";
+import SummaryCard from "./SummaryCard";
+import TimezoneSection from "./TimezoneSection";
+import Toggle from "./Toggle";
+import CredentialsSection from "./CredentialsSection";
+import PhoneNumberSection from "./PhoneNumberSection";
+import RandomWindowSection from "./RandomWindowSection";
+import { DAYS } from "./constants";
 import type {
   AutomationBlock,
   AutomationPayload,
@@ -20,13 +20,13 @@ import type {
   DayKey,
   IsoDay,
   PersistedAutomationPayload,
-} from "./automation/types";
+} from "./types";
 import {
   extractOffsetMinutes,
   formatDays,
   isValidTime,
   toUtcTime,
-} from "./automation/utils";
+} from "./utils";
 
 const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Lun: "monday",
@@ -83,6 +83,9 @@ const DEFAULT_PHONE_COUNTRY =
   PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === "PE") ??
   PHONE_COUNTRIES_WITH_FALLBACK[0];
 
+const PHONE_COUNTRIES_MAP = new Map(
+  PHONE_COUNTRIES_WITH_FALLBACK.map((c) => [c.id, c])
+);
 
 interface AutomationSchedulerProps {
   initialRule: AutomationRule;
@@ -122,7 +125,7 @@ interface AutomationFormValues {
 }
 
 const findPhoneCountry = (id?: CountryCode | null) =>
-  PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === id);
+  id ? PHONE_COUNTRIES_MAP.get(id) : undefined;
 
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
 
@@ -210,6 +213,13 @@ const AutomationScheduler = ({
   const [credentialsMetadata, setCredentialsMetadata] = useState<
     AttendanceCredentialsMetadata | null
   >(initialCredentials ?? null);
+
+  const [credentialsStatus, setCredentialsStatus] = useState<null | {
+    type: "success" | "error";
+    message: string;
+  }>(null);
+
+  const [isSavingCredentials, setIsSavingCredentials] = useState(false);
 
   const initialSnapshot = useRef<AutomationRule>(initialRule);
 
@@ -750,6 +760,36 @@ const AutomationScheduler = ({
     }
   });
 
+  const handleCredentialsSave = async (payload: AttendanceCredentialsPayload) => {
+    setCredentialsStatus(null);
+    setIsSavingCredentials(true);
+    try {
+      if (onSaveCredentials) {
+        await onSaveCredentials(payload);
+      }
+      setCredentialsStatus({
+        type: "success",
+        message: "Credenciales guardadas correctamente.",
+      });
+      setCredentialsMetadata({
+        companyId: payload.companyId,
+        userId: payload.userId,
+        hasPassword: true,
+      });
+    } catch (error) {
+      setCredentialsStatus({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudieron guardar las credenciales.",
+      });
+      throw error;
+    } finally {
+      setIsSavingCredentials(false);
+    }
+  };
+
   const handleSave = () => {
     setShowValidation(true);
     setSaveStatus(null);
@@ -794,11 +834,6 @@ const AutomationScheduler = ({
     }
   };
 
-  const handleCredentialsSave = async (payload: AttendanceCredentialsPayload) => {
-    if (onSaveCredentials) {
-      await onSaveCredentials(payload);
-    }
-  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-8">
@@ -814,6 +849,17 @@ const AutomationScheduler = ({
         </div>
       ) : null}
 
+      {credentialsStatus ? (
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            credentialsStatus.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-rose-200 bg-rose-50 text-rose-800"
+          }`}
+        >
+          {credentialsStatus.message}
+        </div>
+      ) : null}
       {markFeedback ? (
         <div
           className={`rounded-lg border px-4 py-3 text-sm ${
@@ -929,7 +975,7 @@ const AutomationScheduler = ({
           <CredentialsSection
             initialCredentials={credentialsMetadata}
             onSave={handleCredentialsSave}
-            isSaving={isSaving}
+            isSaving={isSavingCredentials}
           />
 
           <LocationSection
@@ -977,4 +1023,4 @@ const AutomationScheduler = ({
 };
 
 export type { AutomationRule, AutomationPayload, PersistedAutomationPayload };
-export default AutomationScheduler;
+export default memo(AutomationScheduler);

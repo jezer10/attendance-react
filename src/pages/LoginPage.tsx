@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 
-import { authenticate, clearTokens, ensureAuthTokens } from "../services/auth";
+import { useAuth, getStoredTokens } from "../features/auth";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -14,12 +14,12 @@ type LoginFormValues = {
 const LoginPage = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const { login, isLoggingIn, loginError } = useAuth();
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting, isValid },
+    formState: { errors, isValid },
     reset,
   } = useForm<LoginFormValues>({
     mode: "onChange",
@@ -30,38 +30,21 @@ const LoginPage = () => {
   });
 
   useEffect(() => {
-    let isMounted = true;
-
-    ensureAuthTokens()
-      .then(() => {
-        if (isMounted) {
-          navigate("/", { replace: true });
-        }
-      })
-      .catch(() => {
-        // Ignoramos si no hay sesión válida
-      });
-
-    return () => {
-      isMounted = false;
-    };
+    const tokens = getStoredTokens();
+    if (tokens) {
+      navigate("/", { replace: true });
+    }
   }, [navigate]);
 
   const onSubmit: SubmitHandler<LoginFormValues> = async (values) => {
-    setAuthError(null);
-
-    try {
-      await authenticate(values.email.trim().toLowerCase(), values.password);
-      reset();
-      navigate("/", { replace: true });
-    } catch (error) {
-      setAuthError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo iniciar sesión. Intenta nuevamente."
-      );
-      clearTokens();
-    }
+    login({
+      email: values.email.trim().toLowerCase(),
+      password: values.password,
+    }, {
+      onSuccess: () => {
+        reset();
+      }
+    });
   };
 
   return (
@@ -176,18 +159,20 @@ const LoginPage = () => {
                 ) : null}
               </div>
 
-              {authError ? (
+              {loginError ? (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {authError}
+                  {loginError instanceof Error
+                    ? loginError.message
+                    : "Error al iniciar sesión"}
                 </div>
               ) : null}
 
               <button
                 type="submit"
-                disabled={!isValid || isSubmitting}
+                disabled={!isValid || isLoggingIn}
                 className="flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
-                {isSubmitting ? "Ingresando…" : "Ingresar"}
+                {isLoggingIn ? "Ingresando…" : "Ingresar"}
               </button>
             </form>
 

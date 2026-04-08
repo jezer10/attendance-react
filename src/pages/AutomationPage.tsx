@@ -1,41 +1,66 @@
-import { useLoaderData } from "react-router";
-
-import AutomationScheduler from "../components/AutomationScheduler";
-import type { AutomationLoaderData } from "../routes/automation";
+import { useEffect } from "react";
+import { useNavigate } from "react-router";
 import {
-  markAutomationNow,
-  saveAttendanceCredentials,
-  saveAutomationRule,
-} from "../services/api";
-import type { PersistedAutomationPayload } from "../components/automation/types";
+  useAutomationRule,
+  useAvailableTimezones,
+  useSaveAutomation,
+  useManualActionToken,
+  useSaveAttendanceCredentials,
+  useAttendanceCredentials,
+} from "../features/automation";
+import { AuthorizationError } from "../features/auth/services/authService";
+import AutomationScheduler from "../features/automation/components/AutomationScheduler";
+
+const EMPTY_ARRAY: string[] = [];
 
 const AutomationPage = () => {
-  const { rule, timezones, credentials } =
-    useLoaderData() as AutomationLoaderData;
+  const navigate = useNavigate();
+  const { 
+    data: rule, 
+    isLoading: isLoadingRule, 
+    error: errorRule 
+  } = useAutomationRule();
+  const { 
+    data: timezones, 
+    isLoading: isLoadingTimezones, 
+    error: errorTimezones 
+  } = useAvailableTimezones();
+  const { 
+    data: credentials, 
+    isLoading: isLoadingCredentials, 
+    error: errorCredentials 
+  } = useAttendanceCredentials();
 
-  const handleSave = async (payload: PersistedAutomationPayload) => {
-    await saveAutomationRule(payload);
-  };
+  const { mutateAsync: saveRule } = useSaveAutomation();
+  const { mutateAsync: markNow } = useManualActionToken();
+  const { mutateAsync: saveCredentials } = useSaveAttendanceCredentials();
 
-  const handleImmediateMark = async (action: "entrada" | "salida") => {
-    await markAutomationNow(action);
-  };
+  useEffect(() => {
+    const hasAuthError = 
+      errorRule instanceof AuthorizationError || 
+      errorTimezones instanceof AuthorizationError || 
+      errorCredentials instanceof AuthorizationError;
 
-  const handleSaveCredentials = async (payload: {
-    companyId: number;
-    userId: number;
-    password: string;
-  }) => {
-    await saveAttendanceCredentials(payload);
-  };
+    if (hasAuthError) {
+      navigate("/login");
+    }
+  }, [errorRule, errorTimezones, errorCredentials, navigate]);
+
+  if (isLoadingRule || isLoadingTimezones || isLoadingCredentials) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <AutomationScheduler
-      initialRule={rule}
-      availableTimezones={timezones}
-      onSave={handleSave}
-      onImmediateMark={handleImmediateMark}
-      onSaveCredentials={handleSaveCredentials}
+      initialRule={rule!}
+      availableTimezones={timezones || EMPTY_ARRAY}
+      onSave={saveRule}
+      onImmediateMark={markNow}
+      onSaveCredentials={saveCredentials}
       initialCredentials={credentials}
     />
   );

@@ -2,8 +2,11 @@ import type {
   AutomationRule,
   DayKey,
   PersistedAutomationPayload,
-} from "../components/automation/types";
-import { authorizedFetch } from "./auth";
+} from "../components/types";
+import {
+  AuthorizationError,
+  authorizedFetch,
+} from "../../auth/services/authService";
 
 type RawScheduleEntry = {
   enabled?: boolean;
@@ -187,7 +190,10 @@ export const fetchAutomationRule = async (): Promise<AutomationRule> => {
     console.log(data);
 
     return _parseRule(data);
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
     return fallbackAutomationRule;
   }
 };
@@ -202,7 +208,10 @@ export const fetchAvailableTimezones = async (): Promise<string[]> => {
       method: "GET",
     });
     return await handleJson(response);
-  } catch {
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw error;
+    }
     return fallbackTimezones;
   }
 };
