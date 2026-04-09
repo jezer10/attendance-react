@@ -1,1 +1,77 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
+
+  --color-primary: #000000;
+  --color-on-primary: #ffffff;
+  --color-background: #f8f9fb;
+  --color-surface: #f8f9fb;
+  --color-surface-container-low: #f3f4f6;
+  --color-surface-container-lowest: #ffffff;
+  --color-outline-variant: #c6c6c6;
+  --color-on-surface-variant: #474747;
+
+  --radius-token: 16px;
+  --radius-card: 24px;
+}
+
+@utility glass-panel {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+@utility glass-panel-dark {
+  background: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+@utility premium-loader {
+  width: 50px;
+  aspect-ratio: 1;
+  display: grid;
+  border-radius: 50%;
+  background:
+    linear-gradient(0deg ,rgb(0 0 0/50%) 30%,#0000 0 70%,rgb(0 0 0/100%) 0) 50%/8% 100%,
+    linear-gradient(90deg,rgb(0 0 0/25%) 30%,#0000 0 70%,rgb(0 0 0/75% ) 0) 50%/100% 8%;
+  background-repeat: no-repeat;
+  animation: l23 1s infinite steps(12);
+}
+
+@utility premium-loader-before-after {
+  content: "";
+  grid-area: 1/1;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.915;
+  transform: rotate(30deg);
+}
+
+@keyframes l23 {
+  100% {transform: rotate(1turn)}
+}
+
+@layer base {
+  body {
+    @apply bg-background font-body text-slate-900 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+  
+  .premium-loader::before,
+  .premium-loader::after {
+    @apply premium-loader-before-after;
+  }
+  
+  .premium-loader::after {
+    opacity: 0.83;
+    transform: rotate(60deg);
+  }
+}

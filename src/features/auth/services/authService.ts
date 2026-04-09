@@ -88,25 +88,32 @@ const parseTokens = (payload: AuthTokenPayload): AuthTokens => ({
 });
 
 export const authenticate = async (email: string, password: string) => {
-  const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${encodeBasic(email, password)}`,
-    },
-  });
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBasic(email, password)}`,
+      },
+    });
 
-  if (!response.ok) {
-    const message =
-      response.status === 401 || response.status === 400
-        ? "Credenciales inválidas. Verifica tu correo y contraseña."
-        : "No se pudo iniciar sesión. Inténtalo más tarde.";
-    throw new Error(message);
+    if (!response.ok) {
+      const message =
+        response.status === 401 || response.status === 400
+          ? "Credenciales inválidas. Verifica tu correo y contraseña."
+          : "No se pudo iniciar sesión. Inténtalo más tarde.";
+      throw new Error(message);
+    }
+
+    const data = (await response.json()) as AuthTokenPayload;
+    const tokens = parseTokens(data);
+    persistTokens(tokens);
+    return tokens;
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new NetworkError();
+    }
+    throw error;
   }
-
-  const data = (await response.json()) as AuthTokenPayload;
-  const tokens = parseTokens(data);
-  persistTokens(tokens);
-  return tokens;
 };
 
 export const refreshSession = async (
@@ -117,22 +124,29 @@ export const refreshSession = async (
 
   if (!token) return null;
 
-  const response = await fetch(
-    `${API_BASE}/api/v1/auth/refresh?token=${encodeURIComponent(token)}`,
-    {
-      method: "GET",
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/auth/refresh?token=${encodeURIComponent(token)}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      clearTokens();
+      return null;
     }
-  );
 
-  if (!response.ok) {
-    clearTokens();
-    return null;
+    const data = (await response.json()) as AuthTokenPayload;
+    const tokens = parseTokens(data);
+    persistTokens(tokens);
+    return tokens;
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new NetworkError();
+    }
+    throw error;
   }
-
-  const data = (await response.json()) as AuthTokenPayload;
-  const tokens = parseTokens(data);
-  persistTokens(tokens);
-  return tokens;
 };
 
 export const ensureAuthTokens = async (): Promise<AuthTokens> => {
@@ -164,6 +178,13 @@ export class AuthorizationError extends Error {
   constructor(message = "No autorizado") {
     super(message);
     this.name = "AuthorizationError";
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message = "No se pudo conectar con el servidor. Verifica tu conexión a internet.") {
+    super(message);
+    this.name = "NetworkError";
   }
 }
 

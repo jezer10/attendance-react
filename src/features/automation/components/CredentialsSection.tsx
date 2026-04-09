@@ -29,57 +29,9 @@ const CredentialsSection = ({
   );
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showValidation, setShowValidation] = useState(false);
-  const [errors, setErrors] = useState<{
-    companyId?: string;
-    userId?: string;
-    password?: string;
-  } | null>(null);
-
-  const [metadata, setMetadata] = useState<AttendanceCredentialsMetadata | null>(
-    initialCredentials
-  );
-
-  const validate = () => {
-    const newErrors: {
-      companyId?: string;
-      userId?: string;
-      password?: string;
-    } = {};
-
-    const companyIdValue = Number(companyId);
-    if (
-      !companyId.trim() ||
-      Number.isNaN(companyIdValue) ||
-      !Number.isInteger(companyIdValue) ||
-      companyIdValue <= 0
-    ) {
-      newErrors.companyId = "Ingresa un ID de empresa válido.";
-    }
-
-    const userIdValue = Number(userId);
-    if (
-      !userId.trim() ||
-      Number.isNaN(userIdValue) ||
-      !Number.isInteger(userIdValue) ||
-      userIdValue <= 0
-    ) {
-      newErrors.userId = "Ingresa un ID de usuario válido.";
-    }
-
-    const passwordValue = password.trim();
-    if (!passwordValue) {
-      newErrors.password = "Ingresa la contraseña.";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
 
   const handleSave = async () => {
-    setShowValidation(true);
-    if (!validate()) return;
-
+    if (!companyId || !userId || !password) return;
     try {
       await onSave({
         companyId: Number(companyId),
@@ -87,126 +39,78 @@ const CredentialsSection = ({
         password: password,
       });
       setPassword("");
-      setMetadata({
-        companyId: Number(companyId),
-        userId: Number(userId),
-        hasPassword: true,
-      });
-      setShowValidation(false);
     } catch {
-      // Error is handled in parent via saveStatus
+      // handled elsewhere
     }
   };
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">
-          Credenciales de marcación
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Se guardan de forma segura y se usan para realizar la marcación
-          automática.
-        </p>
+    <section className="glass-panel p-8 rounded-token space-y-6 border border-black/5">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center">
+          <span className="material-symbols-outlined text-black text-lg font-light">security</span>
+        </div>
+        <h2 className="font-display text-sm uppercase tracking-[0.1em] text-black font-light">Seguridad de Acceso</h2>
+      </div>
+      
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Empresa</label>
+          <input 
+            type="number"
+            value={companyId}
+            onChange={(e) => setCompanyId(e.target.value)}
+            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light" 
+            placeholder="ALPHA-ID" 
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Usuario</label>
+          <input 
+            type="number"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light" 
+            placeholder="USER-ID" 
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Contraseña</label>
+          <div className="relative">
+            <input 
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black font-light" 
+              placeholder="••••••••"
+            />
+            <span 
+              onClick={() => setShowPassword(!showPassword)}
+              className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 hover:text-black cursor-pointer text-base font-light select-none"
+            >
+              {showPassword ? "visibility_off" : "visibility"}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving || !companyId || !userId || !password}
+          className="w-full bg-black hover:bg-zinc-800 disabled:bg-zinc-300 text-white font-display text-[10px] uppercase tracking-[0.2em] py-4 rounded-token transition-all font-light active:scale-[0.98] cursor-pointer"
+        >
+          {isSaving ? "Guardando..." : "Actualizar Credenciales"}
+        </button>
       </div>
 
-      {metadata?.hasPassword ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Credenciales guardadas para este usuario.
-        </div>
-      ) : (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Aún no has guardado credenciales para este usuario.
+      {initialCredentials?.hasPassword && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-black/5 rounded-lg">
+          <span className="material-symbols-outlined text-[14px] text-black/40">verified_user</span>
+          <span className="text-[9px] uppercase tracking-widest text-black/40 font-display">Credenciales activas</span>
         </div>
       )}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-700">
-            ID de empresa
-          </label>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            value={companyId}
-            onChange={(e) => {
-              setCompanyId(e.target.value);
-              if (showValidation) {
-                setErrors((prev) => (prev ? { ...prev, companyId: undefined } : null));
-              }
-            }}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-            placeholder="Ej. 7040"
-          />
-          {showValidation && errors?.companyId ? (
-            <p className="text-sm text-rose-600">{errors.companyId}</p>
-          ) : null}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-700">
-            ID de usuario
-          </label>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            inputMode="numeric"
-            value={userId}
-            onChange={(e) => {
-              setUserId(e.target.value);
-              if (showValidation) {
-                setErrors((prev) => (prev ? { ...prev, userId: undefined } : null));
-              }
-            }}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-            placeholder="Ej. 77668171"
-          />
-          {showValidation && errors?.userId ? (
-            <p className="text-sm text-rose-600">{errors.userId}</p>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-slate-700">Contraseña</label>
-        <div className="relative">
-          <input
-            type={showPassword ? "text" : "password"}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (showValidation) {
-                setErrors((prev) => (prev ? { ...prev, password: undefined } : null));
-              }
-            }}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-12 text-sm text-slate-700 shadow-sm"
-            placeholder="Ingresa la contraseña"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute inset-y-0 right-3 text-xs font-semibold text-slate-500 hover:text-slate-700"
-          >
-            {showPassword ? "Ocultar" : "Mostrar"}
-          </button>
-        </div>
-        {showValidation && errors?.password ? (
-          <p className="text-sm text-rose-600">{errors.password}</p>
-        ) : null}
-      </div>
-
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={isSaving}
-        className="flex w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-      >
-        {isSaving ? "Guardando…" : "Guardar credenciales"}
-      </button>
     </section>
   );
 };

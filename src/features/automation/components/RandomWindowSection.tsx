@@ -3,49 +3,60 @@ import { memo } from "react";
 interface RandomWindowSectionProps {
   value: number | null;
   onChange: (value: number | null) => void;
-  showValidation: boolean;
-  error?: string;
 }
+
+const PRESETS = [0, 5, 10, 15];
 
 const RandomWindowSection = ({
   value,
   onChange,
-  showValidation,
-  error,
 }: RandomWindowSectionProps) => {
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Ventana aleatoria</h2>
-      <div className="space-y-3">
-        <label className="text-sm font-medium text-slate-700">
-          Minutos de variación
-        </label>
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={value === null ? "" : value}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            if (!nextValue.trim()) {
-              onChange(null);
-              return;
-            }
-            const parsed = Number(nextValue);
-            onChange(Number.isNaN(parsed) ? null : parsed);
-          }}
-          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-          placeholder="0"
-        />
-        <p className="text-sm text-slate-500">
-          Define un rango aleatorio en minutos para adelantar o atrasar la
-          marcación.
-        </p>
-        {showValidation && error ? (
-          <p className="text-sm text-rose-600">{error}</p>
-        ) : null}
+    <div className="space-y-3">
+      <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">
+        Minutos de tolerancia
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <div className="flex overflow-hidden rounded-full border border-black/5 w-fit bg-white/40">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => onChange(preset)}
+              className={`px-4 py-2 text-[10px] font-medium uppercase tracking-wider transition-all border-r last:border-r-0 border-black/5 ${
+                value === preset
+                  ? "bg-black text-white cursor-pointer"
+                  : "text-black/60 hover:bg-black/5 cursor-pointer"
+              }`}
+            >
+              {preset} Min
+            </button>
+          ))}
+        </div>
+        
+        {/* Manual Input for other values */}
+        <div className="flex items-center gap-2">
+          {!PRESETS.includes(value ?? -1) && value !== null && (
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => onChange(Number(e.target.value))}
+              className="w-16 bg-white/40 border border-black/5 rounded-full px-3 py-1.5 text-[10px] font-medium focus:ring-1 focus:ring-black outline-none"
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (PRESETS.includes(value ?? -1)) onChange(20);
+              else onChange(0);
+            }}
+            className="text-[10px] font-medium uppercase tracking-wider text-black/40 hover:text-black transition-colors cursor-pointer"
+          >
+            {PRESETS.includes(value ?? -1) ? "OTRO" : "RESTABLECER"}
+          </button>
+        </div>
       </div>
-    </section>
+    </div>
   );
 };
 
