@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { Transition } from "@headlessui/react";
 import {
   useAutomationRule,
   useAvailableTimezones,
@@ -10,6 +11,7 @@ import {
 } from "../features/automation";
 import { AuthorizationError } from "../features/auth/services/authService";
 import AutomationScheduler from "../features/automation/components/AutomationScheduler";
+import AutomationSkeleton from "../features/automation/components/AutomationSkeleton";
 
 const EMPTY_ARRAY: string[] = [];
 
@@ -46,23 +48,42 @@ const AutomationPage = () => {
     }
   }, [errorRule, errorTimezones, errorCredentials, navigate]);
 
-  if (isLoadingRule || isLoadingTimezones || isLoadingCredentials) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-32 w-32 animate-spin rounded-full border-b-2 border-t-2 border-blue-500"></div>
-      </div>
-    );
-  }
+  const isInitialLoading = isLoadingRule || isLoadingTimezones || isLoadingCredentials;
+  const hasData = !!rule && !!timezones; // Credentials might be null if not set yet, that's okay
 
   return (
-    <AutomationScheduler
-      initialRule={rule!}
-      availableTimezones={timezones || EMPTY_ARRAY}
-      onSave={saveRule}
-      onImmediateMark={markNow}
-      onSaveCredentials={saveCredentials}
-      initialCredentials={credentials}
-    />
+    <div className="relative min-h-screen">
+      {/* Main Content: Scheduler if data exists, Skeleton otherwise */}
+      {hasData ? (
+        <AutomationScheduler
+          initialRule={rule!}
+          availableTimezones={timezones || EMPTY_ARRAY}
+          onSave={saveRule}
+          onImmediateMark={markNow}
+          onSaveCredentials={saveCredentials}
+          initialCredentials={credentials}
+        />
+      ) : (
+        <AutomationSkeleton />
+      )}
+
+      {/* Loader Overlay: Transitions out when no longer loading */}
+      <Transition show={isInitialLoading}>
+        <div className="fixed inset-0 z-[100] transition duration-700 ease-in-out data-[closed]:opacity-0 data-[closed]:scale-95 flex items-center justify-center bg-white/20 backdrop-blur-md pointer-events-none">
+          <div className="flex flex-col items-center gap-8 pointer-events-auto">
+            <div className="premium-loader"></div>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] font-display font-medium uppercase tracking-[0.3em] text-black/40 text-center">
+                Sincronizando
+              </span>
+              <span className="text-xl font-display font-medium tracking-tight text-black mt-1 text-center">
+                Preparando tu Dashboard
+              </span>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </div>
   );
 };
 

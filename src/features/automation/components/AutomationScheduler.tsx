@@ -1,21 +1,18 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useController, useForm } from "react-hook-form";
+import { memo, useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Field, Label } from "@headlessui/react";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import type { CountryCode } from "libphonenumber-js";
 
-import ActionsPanel from "./ActionsPanel";
 import LocationSection from "./LocationSection";
-import ScheduleBlock from "./ScheduleBlock";
-import SummaryCard from "./SummaryCard";
-import TimezoneSection from "./TimezoneSection";
 import Toggle from "./Toggle";
 import CredentialsSection from "./CredentialsSection";
-import PhoneNumberSection from "./PhoneNumberSection";
 import RandomWindowSection from "./RandomWindowSection";
+import PhoneNumberSection from "./PhoneNumberSection";
 import { DAYS } from "./constants";
+import { getDialCode } from "./countries";
 import type {
   AutomationBlock,
-  AutomationPayload,
   AutomationRule,
   DayKey,
   IsoDay,
@@ -23,10 +20,11 @@ import type {
 } from "./types";
 import {
   extractOffsetMinutes,
-  formatDays,
   isValidTime,
   toUtcTime,
 } from "./utils";
+
+import { useAuth } from "../../auth";
 
 const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Lun: "monday",
@@ -37,55 +35,6 @@ const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Sab: "saturday",
   Dom: "sunday",
 };
-
-import { getCountries, getCountryCallingCode } from "libphonenumber-js";
-import countries from "i18n-iso-countries";
-import esCountries from "i18n-iso-countries/langs/es.json";
-import enCountries from "i18n-iso-countries/langs/en.json";
-
-countries.registerLocale(esCountries);
-countries.registerLocale(enCountries);
-
-interface PhoneCountry {
-  id: CountryCode;
-  label: string;
-  dialCode: string;
-}
-
-const buildPhoneCountries = (): PhoneCountry[] => {
-  const regions = getCountries();
-  return regions
-    .map((region) => {
-      const label =
-        countries.getName(region, "es") ||
-        countries.getName(region, "en") ||
-        region;
-      let dialCode = "";
-      try {
-        dialCode = String(getCountryCallingCode(region));
-      } catch {
-        dialCode = "";
-      }
-      return { id: region, label, dialCode };
-    })
-    .filter((country) => country.dialCode)
-    .sort((a, b) => a.label.localeCompare(b.label, "es"));
-};
-
-const PHONE_COUNTRIES = buildPhoneCountries();
-const PHONE_COUNTRIES_WITH_FALLBACK =
-  PHONE_COUNTRIES.length > 0 ? PHONE_COUNTRIES : [{
-    id: "PE" as CountryCode,
-    label: "Perú",
-    dialCode: "51",
-  }];
-const DEFAULT_PHONE_COUNTRY =
-  PHONE_COUNTRIES_WITH_FALLBACK.find((country) => country.id === "PE") ??
-  PHONE_COUNTRIES_WITH_FALLBACK[0];
-
-const PHONE_COUNTRIES_MAP = new Map(
-  PHONE_COUNTRIES_WITH_FALLBACK.map((c) => [c.id, c])
-);
 
 interface AutomationSchedulerProps {
   initialRule: AutomationRule;
@@ -124,36 +73,29 @@ interface AutomationFormValues {
   timezone: string;
 }
 
-const findPhoneCountry = (id?: CountryCode | null) =>
-  id ? PHONE_COUNTRIES_MAP.get(id) : undefined;
-
-const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
+const DEFAULT_PHONE_COUNTRY: CountryCode = "PE";
 
 const toFormValues = (rule: AutomationRule): AutomationFormValues => {
   const rawPhone = rule.telefono ?? "";
-  const digits = normalizePhoneDigits(rawPhone);
-  let country = DEFAULT_PHONE_COUNTRY;
-  let number = digits;
+  let country: CountryCode = "PE";
+  let number = rawPhone;
 
-  if (rawPhone.startsWith("+") && digits) {
+  if (rawPhone.startsWith("+")) {
     try {
       const parsed = parsePhoneNumberFromString(rawPhone);
       if (parsed?.country) {
-        const matchedCountry = findPhoneCountry(parsed.country);
-        if (matchedCountry) {
-          country = matchedCountry;
-          number = parsed.nationalNumber;
-        }
+        country = parsed.country;
+        number = parsed.nationalNumber;
       }
     } catch {
-      // Keep fallback defaults if parsing fails.
+      // fallback
     }
   }
 
   return {
     isActive: rule.activo,
     randomWindowMinutes: rule.ventana_aleatoria_minutos ?? null,
-    phoneCountry: country.id,
+    phoneCountry: country,
     phoneNumber: number,
     entry: {
       habilitado: rule.entrada.habilitado,
@@ -185,11 +127,12 @@ const AutomationScheduler = ({
   onSaveCredentials,
   initialCredentials,
 }: AutomationSchedulerProps) => {
+  const { logout, isLoggingOut } = useAuth();
   const {
     control,
     handleSubmit,
-    reset,
     setValue,
+    reset,
     watch,
     trigger,
     formState: { isValid },
@@ -204,418 +147,31 @@ const AutomationScheduler = ({
   }>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isMarking, setIsMarking] = useState<"entrada" | "salida" | null>(null);
-  const [markFeedback, setMarkFeedback] = useState<null | {
-    type: "success" | "error";
-    message: string;
-  }>(null);
-  const [showValidation, setShowValidation] = useState(false);
 
   const [credentialsMetadata, setCredentialsMetadata] = useState<
     AttendanceCredentialsMetadata | null
   >(initialCredentials ?? null);
 
-  const [credentialsStatus, setCredentialsStatus] = useState<null | {
-    type: "success" | "error";
-    message: string;
-  }>(null);
-
   const [isSavingCredentials, setIsSavingCredentials] = useState(false);
-
-  const initialSnapshot = useRef<AutomationRule>(initialRule);
 
   useEffect(() => {
     reset(toFormValues(initialRule));
-    initialSnapshot.current = initialRule;
-    setShowValidation(false);
-    setSaveStatus(null);
-    void trigger();
-  }, [initialRule, reset, trigger]);
+  }, [initialRule, reset]);
 
   useEffect(() => {
-    if (!initialCredentials) {
-      return;
-    }
-    setCredentialsMetadata(initialCredentials);
+    if (initialCredentials) setCredentialsMetadata(initialCredentials);
   }, [initialCredentials]);
 
   const isActive = watch("isActive");
   const entry = watch("entry");
   const exit = watch("exit");
-  const location = watch("location");
   const timezone = watch("timezone");
   const randomWindowMinutes = watch("randomWindowMinutes");
+  const location = watch("location");
   const phoneCountry = watch("phoneCountry");
   const phoneNumber = watch("phoneNumber");
-  const { address, lat, lng, radius } = location;
 
-  const toMinutes = (value: string) => {
-    const [hours, minutes] = value.split(":").map(Number);
-    return hours * 60 + minutes;
-  };
-
-  useEffect(() => {
-    if (!exit.habilitado) return;
-    void trigger("exit.hora_local");
-  }, [
-    entry.habilitado,
-    entry.hora_local,
-    entry.dias,
-    exit.habilitado,
-    trigger,
-  ]);
-  const {
-    field: addressField,
-    fieldState: { error: addressError },
-  } = useController({
-    control,
-    name: "location.address",
-  });
-  const {
-    field: latField,
-    fieldState: { error: locationError },
-  } = useController({
-    control,
-    name: "location.lat",
-    rules: {
-      validate: (value) =>
-        value === null ? "Selecciona una ubicación en el mapa." : true,
-    },
-  });
-  const {
-    field: lngField,
-    fieldState: { error: lngFieldError },
-  } = useController({
-    control,
-    name: "location.lng",
-    rules: {
-      validate: (value) =>
-        value === null ? "Selecciona una ubicación en el mapa." : true,
-    },
-  });
-  const {
-    field: radiusField,
-    fieldState: { error: radiusFieldError },
-  } = useController({
-    control,
-    name: "location.radius",
-    rules: {
-      validate: (value) => {
-        if (value === null || Number.isNaN(value)) {
-          return "Indica un radio válido.";
-        }
-        if (value <= 0) {
-          return "El radio debe ser mayor a 0 metros.";
-        }
-        return true;
-      },
-    },
-  });
-  const {
-    field: randomWindowField,
-    fieldState: { error: randomWindowError },
-  } = useController({
-    control,
-    name: "randomWindowMinutes",
-    rules: {
-      validate: (value) => {
-        if (value === null || Number.isNaN(value)) return true;
-        if (value < 0) {
-          return "La ventana aleatoria no puede ser negativa.";
-        }
-        return true;
-      },
-    },
-  });
-  const {
-    field: phoneNumberField,
-    fieldState: { error: phoneNumberError },
-  } = useController({
-    control,
-    name: "phoneNumber",
-    rules: {
-      validate: (value) => {
-        if (!value || !value.trim()) return true;
-        const digits = normalizePhoneDigits(value);
-        const country = findPhoneCountry(phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
-        try {
-          const parsed = parsePhoneNumberFromString(digits, country.id);
-          if (parsed?.isValid()) {
-            return true;
-          }
-        } catch {
-          // Fall through to error.
-        }
-        return "Ingresa un teléfono válido para el país seleccionado.";
-      },
-    },
-  });
-  const { field: phoneCountryField } = useController({
-    control,
-    name: "phoneCountry",
-  });
-  const {
-    field: timezoneField,
-    fieldState: { error: timezoneError },
-  } = useController({
-    control,
-    name: "timezone",
-    rules: {
-      validate: (value) =>
-        value && value.trim().length > 0
-          ? true
-          : "Selecciona una zona horaria.",
-    },
-  });
-  const { field: entryEnabledField } = useController({
-    control,
-    name: "entry.habilitado",
-  });
-  const {
-    field: entryTimeField,
-    fieldState: { error: entryTimeError },
-  } = useController({
-    control,
-    name: "entry.hora_local",
-    rules: {
-      validate: (value) => {
-        if (!entry.habilitado) return true;
-        if (!value || !value.trim()) {
-          return "Ingresa una hora de entrada.";
-        }
-        if (!isValidTime(value)) {
-          return "Usa el formato HH:MM (24 horas).";
-        }
-        return true;
-      },
-    },
-  });
-  const {
-    field: entryDaysField,
-    fieldState: { error: entryDaysError },
-  } = useController({
-    control,
-    name: "entry.dias",
-  });
-  const { field: exitEnabledField } = useController({
-    control,
-    name: "exit.habilitado",
-  });
-  const {
-    field: exitTimeField,
-    fieldState: { error: exitTimeError },
-  } = useController({
-    control,
-    name: "exit.hora_local",
-    rules: {
-      validate: (value) => {
-        if (!exit.habilitado) return true;
-        if (!value || !value.trim()) {
-          return "Ingresa una hora de salida.";
-        }
-        if (!isValidTime(value)) {
-          return "Usa el formato HH:MM (24 horas).";
-        }
-        if (entry.habilitado) {
-          const entryTime = entry.hora_local;
-          if (entryTime && isValidTime(entryTime)) {
-            const sharedDays = entry.dias.some((day) =>
-              exit.dias.includes(day)
-            );
-            if (sharedDays && toMinutes(value) <= toMinutes(entryTime)) {
-              return "La hora de salida debe ser posterior a la de entrada en el mismo día.";
-            }
-          }
-        }
-        return true;
-      },
-    },
-  });
-  const {
-    field: exitDaysField,
-    fieldState: { error: exitDaysError },
-  } = useController({
-    control,
-    name: "exit.dias",
-  });
-
-  const offsetMinutes = useMemo(
-    () => extractOffsetMinutes(timezone),
-    [timezone]
-  );
-
-  const entryUtcTime = useMemo(() => {
-    if (!entry.habilitado) return null;
-    if (entry.hora_local && isValidTime(entry.hora_local)) {
-      return toUtcTime(entry.hora_local, offsetMinutes);
-    }
-    return entry.hora_utc ?? null;
-  }, [entry.habilitado, entry.hora_local, entry.hora_utc, offsetMinutes]);
-
-  const exitUtcTime = useMemo(() => {
-    if (!exit.habilitado) return null;
-    if (exit.hora_local && isValidTime(exit.hora_local)) {
-      return toUtcTime(exit.hora_local, offsetMinutes);
-    }
-    return exit.hora_utc ?? null;
-  }, [exit.habilitado, exit.hora_local, exit.hora_utc, offsetMinutes]);
-
-  const phoneDisplay = useMemo(() => {
-    if (!phoneNumber.trim()) return "";
-    try {
-      const parsed = parsePhoneNumberFromString(phoneNumber, findPhoneCountry(phoneCountry)?.id);
-      if (parsed) return parsed.formatInternational();
-    } catch {
-      // ignore
-    }
-    return phoneNumber;
-  }, [phoneNumber, phoneCountry]);
-
-  const timezoneErrorMessage =
-    typeof timezoneError?.message === "string"
-      ? timezoneError.message
-      : undefined;
-
-  const locationErrors = useMemo(() => {
-    const messages = new Set<string>();
-    if (typeof addressError?.message === "string") {
-      messages.add(addressError.message);
-    }
-    if (typeof locationError?.message === "string") {
-      messages.add(locationError.message);
-    }
-    if (typeof lngFieldError?.message === "string") {
-      messages.add(lngFieldError.message);
-    }
-    if (typeof radiusFieldError?.message === "string") {
-      messages.add(radiusFieldError.message);
-    }
-    return Array.from(messages);
-  }, [
-    addressError?.message,
-    locationError?.message,
-    lngFieldError?.message,
-    radiusFieldError?.message,
-  ]);
-
-  const entryErrors = useMemo(() => {
-    const errorsList: string[] = [];
-    if (typeof entryTimeError?.message === "string") {
-      errorsList.push(entryTimeError.message);
-    }
-    if (typeof entryDaysError?.message === "string") {
-      errorsList.push(entryDaysError.message);
-    }
-    return errorsList;
-  }, [entryTimeError?.message, entryDaysError?.message]);
-
-  const exitErrors = useMemo(() => {
-    const errorsList: string[] = [];
-    if (typeof exitTimeError?.message === "string") {
-      errorsList.push(exitTimeError.message);
-    }
-    if (typeof exitDaysError?.message === "string") {
-      errorsList.push(exitDaysError.message);
-    }
-    return errorsList;
-  }, [exitTimeError?.message, exitDaysError?.message]);
-
-  const blockingReasons = useMemo(() => {
-    const reasons: string[] = [];
-    reasons.push(...entryErrors, ...exitErrors, ...locationErrors);
-    if (randomWindowError?.message) {
-      reasons.push(randomWindowError.message);
-    }
-    if (phoneNumberError?.message) {
-      reasons.push(phoneNumberError.message);
-    }
-    if (timezoneError?.message) {
-      reasons.push(timezoneError.message);
-    }
-    return Array.from(new Set(reasons));
-  }, [
-    entryErrors,
-    exitErrors,
-    locationErrors,
-    phoneNumberError?.message,
-    randomWindowError?.message,
-    timezoneError?.message,
-  ]);
-
-  const canSave = isValid && !isSaving;
-
-  const summary = useMemo(
-    () => [
-      {
-        label: "Entrada",
-        value: entry.habilitado
-          ? `${formatDays(entry.dias)} a las ${entry.hora_local || "--:--"}`
-          : "Automática: desactivada",
-      },
-      {
-        label: "Entrada (UTC)",
-        value: entry.habilitado
-          ? entryUtcTime
-            ? `a las ${entryUtcTime}`
-            : "Sin hora UTC"
-          : "Automática: desactivada",
-      },
-      {
-        label: "Salida",
-        value: exit.habilitado
-          ? `${formatDays(exit.dias)} a las ${exit.hora_local || "--:--"}`
-          : "Automática: desactivada",
-      },
-      {
-        label: "Salida (UTC)",
-        value: exit.habilitado
-          ? exitUtcTime
-            ? `a las ${exitUtcTime}`
-            : "Sin hora UTC"
-          : "Automática: desactivada",
-      },
-      {
-        label: "Ubicación",
-        value:
-          lat !== null && lng !== null && radius !== null
-            ? `${address || "Sin dirección"}, radio ${radius} m`
-            : "Pendiente de configuración",
-      },
-      {
-        label: "Zona horaria",
-        value: timezone,
-      },
-      {
-        label: "Ventana aleatoria",
-        value:
-          randomWindowMinutes === null
-            ? "Sin ventana"
-            : `${randomWindowMinutes} min`,
-      },
-      {
-        label: "Teléfono",
-        value: phoneNumber.trim() ? phoneDisplay : "Sin teléfono",
-      },
-      {
-        label: "Estado",
-        value: isActive ? "Activo" : "Inactivo",
-      },
-    ],
-    [
-      address,
-      entry,
-      entryUtcTime,
-      exit,
-      exitUtcTime,
-      isActive,
-      lat,
-      lng,
-      phoneDisplay,
-      phoneNumber,
-      radius,
-      randomWindowMinutes,
-      timezone,
-    ]
-  );
+  const offsetMinutes = useMemo(() => extractOffsetMinutes(timezone), [timezone]);
 
   const toggleDay = (current: DayKey[], day: DayKey) => {
     const exists = current.includes(day);
@@ -624,403 +180,344 @@ const AutomationScheduler = ({
       : [...current, day].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b));
   };
 
-  const handleEntryDayToggle = (day: DayKey) => {
-    entryDaysField.onChange(toggleDay(entry.dias, day));
-  };
-
-  const handleExitDayToggle = (day: DayKey) => {
-    exitDaysField.onChange(toggleDay(exit.dias, day));
-  };
-
-  const handleEntryEnabledChange = (value: boolean) => {
-    entryEnabledField.onChange(value);
-    void trigger(["entry.hora_local", "entry.dias"]);
-  };
-
-  const handleExitEnabledChange = (value: boolean) => {
-    exitEnabledField.onChange(value);
-    void trigger(["exit.hora_local", "exit.dias"]);
-  };
-
-  const normalizeBlock = (
-    block: AutomationBlock
-  ): AutomationPayload["entrada"] => {
-    const horaLocal = block.habilitado ? block.hora_local.trim() : "";
-    const dias = block.habilitado
-      ? [...block.dias].sort((a, b) => DAYS.indexOf(a) - DAYS.indexOf(b))
-      : [];
-
-    return {
-      habilitado: block.habilitado,
-      hora_local: horaLocal,
-      dias,
-      hora_utc:
-        block.habilitado && horaLocal
-          ? toUtcTime(horaLocal, offsetMinutes)
-          : null,
-    };
-  };
-
-  const toPersistedBlock = (
-    normalized: AutomationPayload["entrada"]
-  ): PersistedAutomationPayload["schedule"]["entry"] => ({
-    enabled: normalized.habilitado,
-    localTime:
-      normalized.habilitado && normalized.hora_local
-        ? normalized.hora_local
-        : null,
-    utcTime: normalized.hora_utc ?? null,
-    days: normalized.habilitado
-      ? normalized.dias.map((day) => ISO_DAY_MAP[day])
-      : [],
-  });
-
-  const submitForm = handleSubmit(async (values) => {
-    const normalizedEntry = normalizeBlock(values.entry);
-    const normalizedExit = normalizeBlock(values.exit);
-
-    const normalizedPhoneNumber = (() => {
-      const trimmed = values.phoneNumber.trim();
-      if (!trimmed) return null;
-      const digits = normalizePhoneDigits(trimmed);
-      const country =
-        findPhoneCountry(values.phoneCountry) ?? DEFAULT_PHONE_COUNTRY;
-      try {
-        const parsed = parsePhoneNumberFromString(digits, country.id);
-        return parsed?.format("E.164") ?? `+${country.dialCode}${digits}`;
-      } catch {
-        return `+${country.dialCode}${digits}`;
-      }
-    })();
-
-    const persistPayload: PersistedAutomationPayload = {
-      isActive: values.isActive,
-      randomWindowMinutes: values.randomWindowMinutes ?? null,
-      phoneNumber: normalizedPhoneNumber,
-      schedule: {
-        entry: toPersistedBlock(normalizedEntry),
-        exit: toPersistedBlock(normalizedExit),
-      },
-      location: {
-        address: values.location.address.trim(),
-        latitude: values.location.lat ?? null,
-        longitude: values.location.lng ?? null,
-        radiusMeters: values.location.radius ?? null,
-      },
-      timezone: values.timezone,
-    };
-
+  const handleManualMark = async (type: "entrada" | "salida") => {
+    if (isMarking) return;
+    setIsMarking(type);
     try {
-      setIsSaving(true);
-      if (onSave) {
-        await onSave(persistPayload);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        console.info("Guardar payload", persistPayload);
-      }
-      setSaveStatus({
-        type: "success",
-        message: "Configuración guardada correctamente.",
-      });
-      initialSnapshot.current = {
-        activo: values.isActive,
-        ventana_aleatoria_minutos: values.randomWindowMinutes ?? null,
-        telefono: normalizedPhoneNumber,
-        entrada: {
-          habilitado: normalizedEntry.habilitado,
-          hora_local: normalizedEntry.hora_local,
-          dias: normalizedEntry.dias,
-        },
-        salida: {
-          habilitado: normalizedExit.habilitado,
-          hora_local: normalizedExit.hora_local,
-          dias: normalizedExit.dias,
-        },
-        ubicacion: {
-          direccion: values.location.address.trim(),
-          lat: values.location.lat ?? null,
-          lng: values.location.lng ?? null,
-          radio_metros: values.location.radius ?? null,
-        },
-        zona_horaria: values.timezone,
-      };
-      reset(toFormValues(initialSnapshot.current));
-      setShowValidation(false);
-      await trigger();
-    } catch (error) {
-      setSaveStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Ocurrió un error al guardar. Intenta nuevamente.",
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  });
-
-  const handleCredentialsSave = async (payload: AttendanceCredentialsPayload) => {
-    setCredentialsStatus(null);
-    setIsSavingCredentials(true);
-    try {
-      if (onSaveCredentials) {
-        await onSaveCredentials(payload);
-      }
-      setCredentialsStatus({
-        type: "success",
-        message: "Credenciales guardadas correctamente.",
-      });
-      setCredentialsMetadata({
-        companyId: payload.companyId,
-        userId: payload.userId,
-        hasPassword: true,
-      });
-    } catch (error) {
-      setCredentialsStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron guardar las credenciales.",
-      });
-      throw error;
-    } finally {
-      setIsSavingCredentials(false);
-    }
-  };
-
-  const handleSave = () => {
-    setShowValidation(true);
-    setSaveStatus(null);
-    void submitForm();
-  };
-
-  const handleReset = () => {
-    reset(toFormValues(initialSnapshot.current));
-    setSaveStatus(null);
-    setShowValidation(false);
-    void trigger();
-  };
-
-  const handleImmediateMark = async (action: "entrada" | "salida") => {
-    setMarkFeedback(null);
-    setIsMarking(action);
-
-    try {
-      if (onImmediateMark) {
-        await onImmediateMark(action);
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 700));
-        console.info(`Marcación manual ${action}`);
-      }
-
-      setMarkFeedback({
-        type: "success",
-        message: `Marcación de ${
-          action === "entrada" ? "entrada" : "salida"
-        } realizada.`,
-      });
-    } catch (error) {
-      setMarkFeedback({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudo completar la marcación. Intenta nuevamente.",
-      });
+      if (onImmediateMark) await onImmediateMark(type);
     } finally {
       setIsMarking(null);
     }
   };
 
+  const submitForm = handleSubmit(async (values) => {
+    const normalizedEntry = {
+      ...values.entry,
+      hora_utc: values.entry.habilitado ? toUtcTime(values.entry.hora_local, offsetMinutes) : null,
+    };
+    const normalizedExit = {
+      ...values.exit,
+      hora_utc: values.exit.habilitado ? toUtcTime(values.exit.hora_local, offsetMinutes) : null,
+    };
+
+    const dialCode = getDialCode(values.phoneCountry);
+    const fullPhoneNumber = values.phoneNumber 
+      ? `+${dialCode}${values.phoneNumber}`
+      : null;
+
+    const persistPayload: PersistedAutomationPayload = {
+      isActive: values.isActive,
+      randomWindowMinutes: values.randomWindowMinutes,
+      phoneNumber: fullPhoneNumber,
+      schedule: {
+        entry: {
+          enabled: normalizedEntry.habilitado,
+          localTime: normalizedEntry.habilitado ? (normalizedEntry.hora_local || null) : null,
+          utcTime: normalizedEntry.hora_utc,
+          days: normalizedEntry.habilitado ? normalizedEntry.dias.map(d => ISO_DAY_MAP[d]) : [],
+        },
+        exit: {
+          enabled: normalizedExit.habilitado,
+          localTime: normalizedExit.habilitado ? (normalizedExit.hora_local || null) : null,
+          utcTime: normalizedExit.hora_utc,
+          days: normalizedExit.habilitado ? normalizedExit.dias.map(d => ISO_DAY_MAP[d]) : [],
+        },
+      },
+      location: {
+        address: values.location.address,
+        latitude: values.location.lat,
+        longitude: values.location.lng,
+        radiusMeters: values.location.radius,
+      },
+      timezone: values.timezone,
+    };
+
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      if (onSave) await onSave(persistPayload);
+      setSaveStatus({ type: "success", message: "Configuración guardada." });
+    } catch (err) {
+      setSaveStatus({ type: "error", message: "Error al guardar." });
+    } finally {
+      setIsSaving(false);
+    }
+  });
+
+  const handleSave = submitForm;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 py-8">
-      {saveStatus ? (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            saveStatus.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
-        >
-          {saveStatus.message}
+    <div className="font-body text-black pb-40 bg-[#fafafa] font-light min-h-screen">
+      <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md flex justify-between items-center h-20 px-8 border-b border-black/5">
+        <div className="text-xl font-extrabold text-black uppercase tracking-[0.2em] font-display cursor-pointer">MARK</div>
+        <div className="flex gap-8 items-center">
+          <button 
+            onClick={logout}
+            disabled={isLoggingOut}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all font-light cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoggingOut ? (
+               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined text-[18px] font-light">logout</span>
+            )}
+            <span className="text-[10px] uppercase tracking-widest font-display font-light">
+              {isLoggingOut ? "Saliendo..." : "Salir"}
+            </span>
+          </button>
         </div>
-      ) : null}
-
-      {credentialsStatus ? (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            credentialsStatus.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
-        >
-          {credentialsStatus.message}
-        </div>
-      ) : null}
-      {markFeedback ? (
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
-            markFeedback.type === "success"
-              ? "border-sky-200 bg-sky-50 text-sky-800"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
-        >
-          {markFeedback.message}
-        </div>
-      ) : null}
-
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold text-slate-900">
-            Automatización de Marcación
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
-            Configura los días, horarios y ubicación desde los que se realizará
-            la marcación automática de entrada y salida.
-          </p>
-        </div>
-        <span
-          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-medium ${
-            isActive
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-rose-100 text-rose-700"
-          }`}
-        >
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${
-              isActive ? "bg-emerald-500" : "bg-rose-500"
-            }`}
-          />
-          {isActive ? "Activo" : "Inactivo"}
-        </span>
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Estado de la regla
-            </h2>
-            <div className="flex flex-col gap-2">
-              <Toggle
-                checked={isActive}
-                onChange={(value) =>
-                  setValue("isActive", value, {
-                    shouldValidate: true,
-                    shouldDirty: true,
-                  })
-                }
-                label={isActive ? "Activado" : "Desactivado"}
-              />
-              <p className="text-sm text-slate-500">
-                Si está desactivado, no se realizará ninguna marcación
-                automática.
-              </p>
+      <main className="max-w-7xl mx-auto pt-32 px-6 space-y-10">
+        <section className="flex flex-col md:flex-row justify-between items-end gap-6 mb-6">
+          <div className="space-y-2">
+            <h1 className="text-5xl font-display tracking-tight text-black leading-tight font-light transition-all duration-700 animate-in fade-in slide-in-from-left-4">
+              Control de <br/>Entradas y Salidas
+            </h1>
+            <p className="text-on-surface-variant font-medium text-lg max-w-xl font-light">
+              Configura fácilmente el horario y el lugar de trabajo de tu equipo.
+            </p>
+          </div>
+          <Field className="glass-panel px-8 py-5 rounded-token flex items-center gap-6 border border-black/5">
+            <Label className="font-display text-xs uppercase tracking-[0.15em] text-black/60 font-light cursor-pointer">
+              Asistencia Automática
+            </Label>
+            <Toggle
+              checked={isActive}
+              onChange={(val) => setValue("isActive", val, { shouldValidate: true })}
+              className="peer-checked:bg-black"
+            />
+          </Field>
+        </section>
+
+        {/* Timezone Section */}
+        <div className="glass-panel p-6 rounded-token flex flex-col md:flex-row items-center gap-8 transition-all border border-black/5">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center">
+              <span className="material-symbols-outlined text-black font-light">public</span>
             </div>
-          </section>
-
-          <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Horario programado
-            </h2>
-            <div className="grid gap-6 lg:grid-cols-2">
-              <ScheduleBlock
-                title="Marcación de ENTRADA"
-                description="La marcación de entrada se enviará automáticamente a la hora indicada, sólo en los días seleccionados."
-                block={entry}
-                timeInputId="entrada-time"
-                timeLabel="Hora de entrada"
-                onToggleEnabled={handleEntryEnabledChange}
-                onTimeChange={(value) => entryTimeField.onChange(value)}
-                onToggleDay={handleEntryDayToggle}
-                validationErrors={entryErrors}
-                showValidation={showValidation}
-              />
-
-              <ScheduleBlock
-                title="Marcación de SALIDA"
-                description="La marcación de salida se enviará automáticamente a la hora indicada, sólo en los días seleccionados."
-                block={exit}
-                timeInputId="salida-time"
-                timeLabel="Hora de salida"
-                onToggleEnabled={handleExitEnabledChange}
-                onTimeChange={(value) => exitTimeField.onChange(value)}
-                onToggleDay={handleExitDayToggle}
-                validationErrors={exitErrors}
-                showValidation={showValidation}
-              />
-            </div>
-          </section>
-
-          <RandomWindowSection
-            value={randomWindowField.value}
-            onChange={(value) => randomWindowField.onChange(value)}
-            showValidation={showValidation}
-            error={randomWindowError?.message}
-          />
-
-          <PhoneNumberSection
-            phoneCountries={PHONE_COUNTRIES_WITH_FALLBACK}
-            selectedCountry={phoneCountryField.value}
-            phoneNumber={phoneNumberField.value}
-            onCountryChange={(country) => phoneCountryField.onChange(country)}
-            onNumberChange={(number) => phoneNumberField.onChange(number)}
-            showValidation={showValidation}
-            error={phoneNumberError?.message}
-          />
-
-          <CredentialsSection
-            initialCredentials={credentialsMetadata}
-            onSave={handleCredentialsSave}
-            isSaving={isSavingCredentials}
-          />
-
-          <LocationSection
-            address={addressField.value}
-            onAddressChange={(value) => addressField.onChange(value)}
-            lat={latField.value}
-            lng={lngField.value}
-            radius={radiusField.value}
-            onPositionChange={({ lat: newLat, lng: newLng }) => {
-              latField.onChange(newLat);
-              lngField.onChange(newLng);
-            }}
-            onRadiusChange={(value) => radiusField.onChange(value)}
-            validationErrors={
-              locationError?.message ? [locationError.message] : []
-            }
-            showValidation={showValidation}
-          />
-
-          <TimezoneSection
-            timezone={timezoneField.value}
-            availableTimezones={availableTimezones}
-            onTimezoneChange={(value) => timezoneField.onChange(value)}
-            showValidation={showValidation}
-            error={timezoneErrorMessage}
-          />
+            <span className="text-black uppercase tracking-widest text-xs font-light">Ubicación horaria:</span>
+          </div>
+          <select 
+            value={timezone}
+            onChange={(e) => setValue("timezone", e.target.value, { shouldValidate: true })}
+            className="bg-white/40 border border-black/5 rounded-token px-6 py-3 flex-grow focus:ring-2 focus:ring-black appearance-none font-body text-black cursor-pointer font-light outline-none"
+          >
+            {availableTimezones.map(tz => (
+              <option key={tz} value={tz}>{tz}</option>
+            ))}
+          </select>
         </div>
 
-        <div className="space-y-6">
-          <SummaryCard summary={summary} />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-7 space-y-8">
+            {/* Horario de Entrada */}
+            <div className="glass-panel p-8 rounded-token space-y-6 relative overflow-hidden border-l-4 border-l-black group transition-all border border-black/5">
+              <Field className="flex justify-between items-center relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-lg font-light">login</span>
+                  </div>
+                  <Label className="font-display text-xl uppercase tracking-[0.1em] text-black font-light cursor-pointer">Horario de Entrada</Label>
+                </div>
+                <Toggle
+                  checked={entry.habilitado}
+                  onChange={(val) => setValue("entry.habilitado", val, { shouldValidate: true })}
+                />
+              </Field>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div className="space-y-3">
+                  <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">Hora para entrar</label>
+                  <input 
+                    type="time"
+                    value={entry.hora_local}
+                    onChange={(e) => setValue("entry.hora_local", e.target.value, { shouldValidate: true })}
+                    className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none" 
+                  />
+                </div>
+                {/* Random Window Section integration here if needed, or separate */}
+                <div className="space-y-3">
+                  <RandomWindowSection
+                    value={randomWindowMinutes}
+                    onChange={(val) => setValue("randomWindowMinutes", val, { shouldValidate: true })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-4 pt-4 border-t border-black/5">
+                <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">Días de trabajo</label>
+                <div className="flex flex-wrap gap-3">
+                  {DAYS.map((day) => {
+                    const isSelected = entry.dias.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => setValue("entry.dias", toggleDay(entry.dias, day), { shouldValidate: true })}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-xs font-display font-light cursor-pointer ${
+                          isSelected 
+                            ? "bg-black text-white" 
+                            : "bg-transparent text-black/30 border border-black/10 hover:border-black/30"
+                        }`}
+                      >
+                        {day[0]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
-          <ActionsPanel
-            canSave={canSave}
-            isSaving={isSaving}
-            onSave={handleSave}
-            onReset={handleReset}
-            onImmediateMark={handleImmediateMark}
-            isMarking={isMarking}
-            blockingReasons={!canSave ? blockingReasons : []}
-          />
+            {/* Horario de Salida */}
+            <div className="glass-panel p-8 rounded-token space-y-6 relative overflow-hidden border-l-4 border-l-black group transition-all border border-black/5">
+              <Field className="flex justify-between items-center relative z-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center">
+                    <span className="material-symbols-outlined text-lg font-light">logout</span>
+                  </div>
+                  <Label className="font-display text-xl uppercase tracking-[0.1em] text-black font-light cursor-pointer">Horario de Salida</Label>
+                </div>
+                <Toggle
+                  checked={exit.habilitado}
+                  onChange={(val) => setValue("exit.habilitado", val, { shouldValidate: true })}
+                />
+              </Field>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                <div className="space-y-3">
+                  <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">Hora para salir</label>
+                  <input 
+                    type="time" 
+                    value={exit.hora_local}
+                    onChange={(e) => setValue("exit.hora_local", e.target.value, { shouldValidate: true })}
+                    className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none" 
+                  />
+                </div>
+              </div>
+              <div className="space-y-4 pt-4 border-t border-black/5">
+                <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">Días de trabajo</label>
+                <div className="flex flex-wrap gap-3">
+                  {DAYS.map((day) => {
+                    const isSelected = exit.dias.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => setValue("exit.dias", toggleDay(exit.dias, day), { shouldValidate: true })}
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-xs font-display font-light cursor-pointer ${
+                          isSelected 
+                            ? "bg-black text-white" 
+                            : "bg-transparent text-black/30 border border-black/10 hover:border-black/30"
+                        }`}
+                      >
+                        {day[0]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 space-y-8">
+            <LocationSection
+              address={location.address}
+              lat={location.lat}
+              lng={location.lng}
+              radius={location.radius}
+              onLocationChange={(loc) => setValue("location", loc, { shouldValidate: true })}
+            />
+
+            <PhoneNumberSection
+              selectedCountry={phoneCountry}
+              phoneNumber={phoneNumber}
+              onCountryChange={(val) => setValue("phoneCountry", val, { shouldValidate: true })}
+              onNumberChange={(val) => setValue("phoneNumber", val, { shouldValidate: true })}
+            />
+
+            <CredentialsSection
+              initialCredentials={credentialsMetadata}
+              onSave={async (payload) => {
+                setIsSavingCredentials(true);
+                try {
+                  if (onSaveCredentials) await onSaveCredentials(payload);
+                  setCredentialsMetadata({ ...payload, hasPassword: true });
+                } finally {
+                  setIsSavingCredentials(false);
+                }
+              }}
+              isSaving={isSavingCredentials}
+            />
+          </div>
+        </div>
+
+        {/* Global Summary & Status Bar */}
+        <div className="p-8 bg-black/5 rounded-token border border-black/10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-6 max-w-3xl">
+            <div className="w-12 h-12 bg-black text-white rounded-full flex-shrink-0 flex items-center justify-center">
+              <span className="material-symbols-outlined text-lg font-light">verified</span>
+            </div>
+            <p className="text-xs text-black/70 leading-relaxed font-body tracking-wide font-light">
+              Estado actual: el registro se hará solo los días configurados. 
+              El sistema verificará que los usuarios estén dentro del radio permitido respecto a {location.address || "la ubicación"}.
+            </p>
+          </div>
+          <div className="flex items-center gap-4 bg-white px-6 py-3 rounded-full border border-black/5">
+            <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-black animate-pulse' : 'bg-zinc-300'}`}></span>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-black font-display font-light">
+              {isActive ? "Sistema Funcionando" : "Sistema Pausado"}
+            </span>
+          </div>
+        </div>
+      </main>
+
+      {/* Floating Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 p-8 z-[60] flex justify-center pointer-events-none mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="glass-panel max-w-3xl w-full px-10 py-5 rounded-full flex items-center justify-between pointer-events-auto border-t border-white/60">
+          <div className="flex gap-4">
+            <button 
+              onClick={() => handleManualMark("entrada")}
+              disabled={!!isMarking}
+              className="px-8 py-3 rounded-full font-display text-[10px] uppercase tracking-[0.2em] bg-white border border-black/10 hover:bg-black hover:text-white hover:border-black transition-all text-black font-light disabled:opacity-50 cursor-pointer"
+            >
+              {isMarking === "entrada" ? "Marcando..." : "Registrar Entrada"}
+            </button>
+            <button 
+              onClick={() => handleManualMark("salida")}
+              disabled={!!isMarking}
+              className="px-8 py-3 rounded-full font-display text-[10px] uppercase tracking-[0.2em] bg-white border border-black/10 hover:bg-black hover:text-white hover:border-black transition-all text-black font-light disabled:opacity-50 cursor-pointer"
+            >
+              {isMarking === "salida" ? "Marcando..." : "Registrar Salida"}
+            </button>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="h-8 w-[1px] bg-black/10"></div>
+            <button 
+              onClick={handleSave}
+              disabled={isSaving || !isValid}
+              className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:scale-110 transition-all active:scale-95 border border-white/10 font-light disabled:bg-zinc-400 cursor-pointer"
+              title="Guardar cambios"
+            >
+              {isSaving ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-2xl font-light">save</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
+
+      {saveStatus && (
+        <div className={`fixed top-24 right-8 z-[100] px-6 py-4 rounded-token border border-white/20 backdrop-blur-md animate-in slide-in-from-right-4 duration-300 ${
+          saveStatus.type === "success" ? "bg-black text-white" : "bg-error text-white"
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-lg">
+              {saveStatus.type === "success" ? "check_circle" : "error"}
+            </span>
+            <span className="text-xs uppercase tracking-widest">{saveStatus.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export type { AutomationRule, AutomationPayload, PersistedAutomationPayload };
 export default memo(AutomationScheduler);

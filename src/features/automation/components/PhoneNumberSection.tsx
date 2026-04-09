@@ -2,48 +2,45 @@ import { memo, useMemo } from "react";
 import { AsYouType, getExampleNumber } from "libphonenumber-js";
 import type { CountryCode } from "libphonenumber-js";
 import examples from "libphonenumber-js/examples.mobile.json";
-
-interface PhoneCountry {
-  id: CountryCode;
-  label: string;
-  dialCode: string;
-}
+import { getAllCountries } from "./countries";
 
 interface PhoneNumberSectionProps {
-  phoneCountries: PhoneCountry[];
   selectedCountry: CountryCode;
   phoneNumber: string;
   onCountryChange: (country: CountryCode) => void;
   onNumberChange: (number: string) => void;
-  showValidation: boolean;
+  showValidation?: boolean;
   error?: string;
+  className?: string;
 }
 
 const MAX_NATIONAL_LENGTH = 15;
 const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "");
 
 const PhoneNumberSection = ({
-  phoneCountries,
   selectedCountry,
   phoneNumber,
   onCountryChange,
   onNumberChange,
   showValidation,
   error,
+  className = "",
 }: PhoneNumberSectionProps) => {
+  const allCountries = useMemo(() => getAllCountries(), []);
+
   const currentCountry = useMemo(
-    () => phoneCountries.find((c) => c.id === selectedCountry) || phoneCountries[0],
-    [phoneCountries, selectedCountry]
+    () => allCountries.find((c) => c.id === selectedCountry) || allCountries[0],
+    [selectedCountry, allCountries]
   );
 
   const formattedPhoneNumber = useMemo(() => {
     if (!phoneNumber) return "";
-    return new AsYouType(currentCountry.id).input(phoneNumber) || phoneNumber;
+    return new AsYouType(currentCountry.id as CountryCode).input(phoneNumber) || phoneNumber;
   }, [currentCountry.id, phoneNumber]);
 
   const phonePlaceholder = useMemo(() => {
     try {
-      const example = getExampleNumber(currentCountry.id, examples);
+      const example = getExampleNumber(currentCountry.id as CountryCode, examples);
       if (example) return example.formatNational();
     } catch {
       // ignore
@@ -52,41 +49,65 @@ const PhoneNumberSection = ({
   }, [currentCountry.id]);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Teléfono de contacto</h2>
-      <div className="space-y-3">
-        <label className="text-sm font-medium text-slate-700">País y número</label>
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
-          <select
-            value={selectedCountry}
-            onChange={(e) => {
-              const nextCountry = e.target.value as CountryCode;
-              onCountryChange(nextCountry);
-            }}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-          >
-            {phoneCountries.map((country) => (
-              <option key={country.id} value={country.id}>
-                {country.label} (+{country.dialCode})
-              </option>
-            ))}
-          </select>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={formattedPhoneNumber}
-            onChange={(e) => {
-              const digits = normalizePhoneDigits(e.target.value);
-              onNumberChange(digits.slice(0, MAX_NATIONAL_LENGTH));
-            }}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 shadow-sm"
-            placeholder={phonePlaceholder}
-          />
+    <section className={`glass-panel p-8 rounded-token space-y-6 border border-black/5 ${className}`}>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center">
+          <span className="material-symbols-outlined text-black text-lg font-light">notifications_active</span>
         </div>
-        <p className="text-sm text-slate-500">Ingresa el número local y selecciona el país.</p>
+        <h2 className="font-display text-sm uppercase tracking-[0.1em] text-black font-light">Notificaciones</h2>
+      </div>
+
+      <div className="space-y-5">
+        <p className="text-[10px] text-black/40 uppercase tracking-widest font-display font-light leading-relaxed">
+          Configura el número de teléfono donde recibirás las confirmaciones de marcación.
+        </p>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">País</label>
+            <div className="relative">
+              <select
+                value={selectedCountry}
+                onChange={(e) => onCountryChange(e.target.value as CountryCode)}
+                className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black appearance-none cursor-pointer font-light"
+              >
+                {allCountries.map((country) => (
+                  <option key={country.id} value={country.id} className="text-black bg-white">
+                    {country.label} (+{country.dialCode})
+                  </option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 pointer-events-none text-base">expand_more</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Número de Teléfono</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={formattedPhoneNumber}
+              onChange={(e) => {
+                const digits = normalizePhoneDigits(e.target.value);
+                onNumberChange(digits.slice(0, MAX_NATIONAL_LENGTH));
+              }}
+              className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light"
+              placeholder={phonePlaceholder}
+            />
+          </div>
+        </div>
+
         {showValidation && error ? (
-          <p className="text-sm text-rose-600">{error}</p>
-        ) : null}
+          <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 rounded-lg border border-rose-100">
+            <span className="material-symbols-outlined text-[14px] text-rose-500">error</span>
+            <span className="text-[9px] uppercase tracking-widest text-rose-500 font-display font-light">{error}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 bg-black/5 rounded-lg">
+            <span className="material-symbols-outlined text-[14px] text-black/40 font-light">info</span>
+            <span className="text-[9px] uppercase tracking-widest text-black/40 font-display font-light">Registro vía WhatsApp</span>
+          </div>
+        )}
       </div>
     </section>
   );
