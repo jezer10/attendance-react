@@ -127,7 +127,7 @@ const AutomationScheduler = ({
   onSaveCredentials,
   initialCredentials,
 }: AutomationSchedulerProps) => {
-  const { logout } = useAuth();
+  const { logout, isLoggingOut } = useAuth();
   const {
     control,
     handleSubmit,
@@ -212,15 +212,15 @@ const AutomationScheduler = ({
       schedule: {
         entry: {
           enabled: normalizedEntry.habilitado,
-          localTime: normalizedEntry.hora_local || null,
+          localTime: normalizedEntry.habilitado ? (normalizedEntry.hora_local || null) : null,
           utcTime: normalizedEntry.hora_utc,
-          days: normalizedEntry.dias.map(d => ISO_DAY_MAP[d]),
+          days: normalizedEntry.habilitado ? normalizedEntry.dias.map(d => ISO_DAY_MAP[d]) : [],
         },
         exit: {
           enabled: normalizedExit.habilitado,
-          localTime: normalizedExit.hora_local || null,
+          localTime: normalizedExit.habilitado ? (normalizedExit.hora_local || null) : null,
           utcTime: normalizedExit.hora_utc,
-          days: normalizedExit.dias.map(d => ISO_DAY_MAP[d]),
+          days: normalizedExit.habilitado ? normalizedExit.dias.map(d => ISO_DAY_MAP[d]) : [],
         },
       },
       location: {
@@ -253,10 +253,17 @@ const AutomationScheduler = ({
         <div className="flex gap-8 items-center">
           <button 
             onClick={logout}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all font-light cursor-pointer"
+            disabled={isLoggingOut}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all font-light cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="material-symbols-outlined text-[18px] font-light">logout</span>
-            <span className="text-[10px] uppercase tracking-widest font-display font-light">Salir</span>
+            {isLoggingOut ? (
+               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <span className="material-symbols-outlined text-[18px] font-light">logout</span>
+            )}
+            <span className="text-[10px] uppercase tracking-widest font-display font-light">
+              {isLoggingOut ? "Saliendo..." : "Salir"}
+            </span>
           </button>
         </div>
       </header>
