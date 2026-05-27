@@ -1,5 +1,3 @@
-import type { DayKey } from "./types";
-
 export const isValidTime = (value: string) =>
   /^([01]\d|2[0-3]):([0-5]\d)$/.test(value.trim());
 
@@ -31,24 +29,3 @@ export const toUtcTime = (time: string, offsetMinutes: number) => {
     .padStart(2, "0")}`;
 };
 
-export const formatDays = (days: DayKey[]) => {
-  if (!days.length) return "—";
-  if (days.length === 7) return "Lun–Dom";
-
-  const weekdays: DayKey[] = ["Lun", "Mar", "Mie", "Jue", "Vie"];
-  const weekend: DayKey[] = ["Sab", "Dom"];
-
-  if (days.length === 5 && weekdays.every((day) => days.includes(day))) {
-    return "Lun–Vie";
-  }
-
-  if (
-    days.length === 2 &&
-    weekend.every((day) => days.includes(day)) &&
-    days.every((day) => weekend.includes(day))
-  ) {
-    return "Fin de semana";
-  }
-
-  return days.join(", ");
-};

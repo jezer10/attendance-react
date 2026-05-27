@@ -1,6 +1,9 @@
 import { redirect } from "react-router";
 
-const STORAGE_KEY = "automation-auth";
+const ACCESS_KEY = "authToken";
+const REFRESH_KEY = "refreshToken";
+const LEGACY_KEY = "automation-auth";
+
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const encodeBasic = (email: string, password: string) => {
@@ -35,34 +38,41 @@ const normalizeTokenType = (tokenType?: string) => {
 };
 
 const persistTokens = (tokens: AuthTokens) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
-  localStorage.setItem("authToken", tokens.accessToken);
-  localStorage.setItem("refreshToken", tokens.refreshToken);
+  localStorage.setItem(ACCESS_KEY, tokens.accessToken);
+  localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+  localStorage.removeItem(LEGACY_KEY);
 };
 
 export const clearTokens = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem("authToken");
-  localStorage.removeItem("refreshToken");
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(LEGACY_KEY);
 };
 
+
 export const getStoredTokens = (): AuthTokens | null => {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AuthTokens;
-  } catch {
-    clearTokens();
-    return null;
-  }
+  const accessToken = localStorage.getItem(ACCESS_KEY);
+  const refreshToken = localStorage.getItem(REFRESH_KEY);
+
+  if (!accessToken || !refreshToken) return null;
+
+  const decoded = decodeJwt(accessToken);
+  return {
+    userId: decoded?.sub ?? "unknown",
+    accessToken,
+    refreshToken,
+    tokenType: "Bearer",
+    expiresAt: decoded?.exp ? decoded.exp * 1000 : undefined,
+  };
 };
 
 const decodeJwt = (token: string) => {
-  const [, payload] = token.split(".");
-  if (!payload) return null;
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  const payload = parts[1];
   try {
     const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    return JSON.parse(decoded) as { exp?: number };
+    return JSON.parse(decoded) as { exp?: number; sub?: string };
   } catch {
     return null;
   }
@@ -88,25 +98,32 @@ const parseTokens = (payload: AuthTokenPayload): AuthTokens => ({
 });
 
 export const authenticate = async (email: string, password: string) => {
-  const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${encodeBasic(email, password)}`,
-    },
-  });
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${encodeBasic(email, password)}`,
+      },
+    });
 
-  if (!response.ok) {
-    const message =
-      response.status === 401 || response.status === 400
-        ? "Credenciales inválidas. Verifica tu correo y contraseña."
-        : "No se pudo iniciar sesión. Inténtalo más tarde.";
-    throw new Error(message);
+    if (!response.ok) {
+      const message =
+        response.status === 401 || response.status === 400
+          ? "Credenciales inválidas. Verifica tu correo y contraseña."
+          : "No se pudo iniciar sesión. Inténtalo más tarde.";
+      throw new Error(message);
+    }
+
+    const data = (await response.json()) as AuthTokenPayload;
+    const tokens = parseTokens(data);
+    persistTokens(tokens);
+    return tokens;
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new NetworkError();
+    }
+    throw error;
   }
-
-  const data = (await response.json()) as AuthTokenPayload;
-  const tokens = parseTokens(data);
-  persistTokens(tokens);
-  return tokens;
 };
 
 export const refreshSession = async (
@@ -117,22 +134,29 @@ export const refreshSession = async (
 
   if (!token) return null;
 
-  const response = await fetch(
-    `${API_BASE}/api/v1/auth/refresh?token=${encodeURIComponent(token)}`,
-    {
-      method: "GET",
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/v1/auth/refresh?token=${encodeURIComponent(token)}`,
+      {
+        method: "GET",
+      }
+    );
+
+    if (!response.ok) {
+      clearTokens();
+      return null;
     }
-  );
 
-  if (!response.ok) {
-    clearTokens();
-    return null;
+    const data = (await response.json()) as AuthTokenPayload;
+    const tokens = parseTokens(data);
+    persistTokens(tokens);
+    return tokens;
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new NetworkError();
+    }
+    throw error;
   }
-
-  const data = (await response.json()) as AuthTokenPayload;
-  const tokens = parseTokens(data);
-  persistTokens(tokens);
-  return tokens;
 };
 
 export const ensureAuthTokens = async (): Promise<AuthTokens> => {
@@ -164,6 +188,13 @@ export class AuthorizationError extends Error {
   constructor(message = "No autorizado") {
     super(message);
     this.name = "AuthorizationError";
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message = "No se pudo conectar con el servidor. Verifica tu conexión a internet.") {
+    super(message);
+    this.name = "NetworkError";
   }
 }
 
