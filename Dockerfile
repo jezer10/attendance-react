@@ -6,7 +6,7 @@ WORKDIR /app
 RUN corepack enable
 
 # Copia manifests primero (para aprovechar cache)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Instala dependencias (usa lockfile)
 RUN pnpm install --frozen-lockfile
