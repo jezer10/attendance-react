@@ -39,7 +39,7 @@ const LocationSection = ({
         });
         setLoading(false);
       },
-      (err) => {
+      () => {
         setError("Denegado");
         setLoading(false);
       },

@@ -1,4 +1,5 @@
 import { getCountries, getCountryCallingCode } from "libphonenumber-js";
+import type { CountryCode } from "libphonenumber-js";
 import countries from "i18n-iso-countries";
 import es from "i18n-iso-countries/langs/es.json";
 
@@ -41,9 +42,9 @@ export const getAllCountries = (): PhoneCountry[] => {
 /**
  * Resolves the dial code for a given country code.
  */
-export const getDialCode = (countryCode: string): string => {
+export const getDialCode = (countryCode: CountryCode): string => {
   try {
-    return String(getCountryCallingCode(countryCode as any));
+    return String(getCountryCallingCode(countryCode));
   } catch {
     return "51"; // Default fallback to Peru
   }

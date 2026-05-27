@@ -20,7 +20,6 @@ import type {
 } from "./types";
 import {
   extractOffsetMinutes,
-  isValidTime,
   toUtcTime,
 } from "./utils";
 
@@ -77,7 +76,7 @@ const DEFAULT_PHONE_COUNTRY: CountryCode = "PE";
 
 const toFormValues = (rule: AutomationRule): AutomationFormValues => {
   const rawPhone = rule.telefono ?? "";
-  let country: CountryCode = "PE";
+  let country: CountryCode = DEFAULT_PHONE_COUNTRY;
   let number = rawPhone;
 
   if (rawPhone.startsWith("+")) {
@@ -129,12 +128,10 @@ const AutomationScheduler = ({
 }: AutomationSchedulerProps) => {
   const { logout, isLoggingOut } = useAuth();
   const {
-    control,
     handleSubmit,
     setValue,
     reset,
     watch,
-    trigger,
     formState: { isValid },
   } = useForm<AutomationFormValues>({
     mode: "onChange",
@@ -237,7 +234,7 @@ const AutomationScheduler = ({
     try {
       if (onSave) await onSave(persistPayload);
       setSaveStatus({ type: "success", message: "Configuración guardada." });
-    } catch (err) {
+    } catch {
       setSaveStatus({ type: "error", message: "Error al guardar." });
     } finally {
       setIsSaving(false);
@@ -252,7 +249,7 @@ const AutomationScheduler = ({
         <div className="text-xl font-extrabold text-black uppercase tracking-[0.2em] font-display cursor-pointer">MARK</div>
         <div className="flex gap-8 items-center">
           <button 
-            onClick={logout}
+            onClick={() => logout()}
             disabled={isLoggingOut}
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all font-light cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
