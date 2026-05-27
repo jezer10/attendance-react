@@ -1,9 +1,5 @@
 import { memo } from "react";
 
-const SkeletonBox = ({ className }: { className?: string }) => (
-  <div className={`bg-black/10 animate-pulse rounded-token ${className}`} />
-);
-
 const AutomationSkeleton = () => {
   return (
     <div className="font-body text-black pb-40 bg-[#fafafa] font-light min-h-screen">
