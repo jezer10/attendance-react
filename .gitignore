@@ -25,12 +25,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# env
-
-.env
-.env.local
-.env.development
-.env.production
-
-#stitch
+# Stitch
 .stitch
+
+# Environment
+.env*
+!.env.example
