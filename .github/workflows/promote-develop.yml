@@ -61,7 +61,7 @@ jobs:
           echo "⏱️ Timeout esperando checks de develop (5 min)"
           exit 1
 
-  # ─── 2. Abre o actualiza el PR develop → master con auto-merge ─────────────
+  # ─── 2. Sincroniza develop con master si está atrás, luego crea/actualiza PR ─
   open-pr:
     name: Open or update PR develop → master
     needs: wait-ci
@@ -76,19 +76,20 @@ jobs:
         with:
           ref: develop
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Open or update PR develop → master
+      - name: Sync develop onto master (merge if needed)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
-          # Verifica que develop no esté atrás de master (por si alguien pusheó directo a master).
+          # Mide ahead/behind.
           BEHIND=$(gh api \
             -H "Accept: application/vnd.github+json" \
             "/repos/${{ github.repository }}/compare/master...develop" \
@@ -100,14 +101,52 @@ jobs:
 
           echo "develop está $AHEAD commits ahead, $BEHIND commits behind master"
 
+          if [ "$AHEAD" = "0" ] && [ "$BEHIND" = "0" ]; then
+            echo "Nada que promover: develop y master están en el mismo commit"
+            exit 0
+          fi
+
+          # Si develop está atrás, es porque promociones anteriores squash-mergearon
+          # develop → master, rompiendo el ancestry compartido. Solución: hacer
+          # merge de master en develop (no fast-forward), que introduce un merge
+          # commit pero no requiere force-push. develop puede tener merge commits;
+          # master se mantiene linear con squash.
+          if [ "$BEHIND" != "0" ]; then
+            echo "⚠️  develop está $BEHIND commit(s) behind master. Mergeando master en develop..."
+            git fetch origin master
+            if ! git merge --no-ff origin/master -m "chore: sync develop with master [skip ci]"; then
+              echo "❌ Merge produjo conflictos. Resolver manualmente."
+              exit 1
+            fi
+            echo "✅ Merge exitoso. Pusheando a develop..."
+            git push origin develop
+          fi
+
+      - name: Open or update PR develop → master
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          # Re-medir después del rebase.
+          BEHIND=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/compare/master...develop" \
+            --jq '.behind_by')
+          AHEAD=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/compare/master...develop" \
+            --jq '.ahead_by')
+
+          echo "Después de sync: develop está $AHEAD commits ahead, $BEHIND commits behind master"
+
           if [ "$AHEAD" = "0" ]; then
             echo "Nada que promover: develop ya está en master"
             exit 0
           fi
 
           if [ "$BEHIND" != "0" ]; then
-            echo "❌ develop está $BEHIND commits behind master. Resolver manualmente antes de promover."
-            echo "   Sugerencia: merge master → develop primero, o rebase develop sobre master."
+            echo "❌ develop aún está $BEHIND commits behind master tras sync. Abort."
             exit 1
           fi
 
@@ -119,8 +158,8 @@ jobs:
             --json number --jq '.[0].number // empty')
 
           if [ -n "$EXISTING_PR" ]; then
-            echo "ℹ️ PR #$EXISTING_PR ya existe; habilitando auto-merge"
-            gh pr merge "$EXISTING_PR" --auto --squash --delete-branch=false
+            echo "ℹ️ PR #$EXISTING_PR ya existe; habilitando auto-merge (merge commit)"
+            gh pr merge "$EXISTING_PR" --auto --merge --delete-branch=false
           else
             echo "🆕 Creando PR develop → master"
             PR_URL=$(gh pr create \
@@ -132,7 +171,7 @@ jobs:
           - Triggered by: push to develop (commit \`${GITHUB_SHA:0:7}\`)
           - Source: \`develop\`
           - Target: \`master\`
-          - Strategy: squash
+          - Strategy: merge commit (preserves ancestry for next sync)
 
           Auto-merge will fire when all required checks pass on this PR. The
           push to \`master\` then triggers \`.github/workflows/auto-deploy.yml\`
@@ -141,5 +180,5 @@ jobs:
 
             echo "PR creado: $PR_URL"
             PR_NUMBER=$(echo "$PR_URL" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+')
-            gh pr merge "$PR_NUMBER" --auto --squash --delete-branch=false
+            gh pr merge "$PR_NUMBER" --auto --merge --delete-branch=false
           fi

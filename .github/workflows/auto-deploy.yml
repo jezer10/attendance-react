@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    types:
+      - closed
+    branches:
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -15,17 +20,59 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # ─── 0. Gate: si el trigger es pull_request:closed, abortar si NO fue merge ─
+  merged-guard:
+    name: Verify PR was merged
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    outputs:
+      merged: ${{ steps.gate.outputs.merged }}
+    steps:
+      - name: Check pull_request.merged
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+            echo "merged=true" >> "$GITHUB_OUTPUT"
+            echo "✅ PR fue mergeado a master"
+          else
+            echo "merged=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ PR cerrado sin merge; saliendo"
+            exit 0
+          fi
+
   # ─── 1. Build y push de imagen Docker a GitHub Container Registry ───────────
   build-push:
     name: Build & Push Docker image
+    needs: merged-guard
+    if: github.event_name != 'pull_request' || needs.merged-guard.outputs.merged == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
+      - name: Resolve effective SHA
+        id: sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Para `push` usamos github.sha directo.
+          # Para `pull_request:closed` merged, github.sha es el SHA del head ref,
+          # pero queremos el merge_commit_sha (que es el commit real de master).
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          else
+            SHA="${{ github.sha }}"
+          fi
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Effective SHA: ${SHA}"
+
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -137,12 +184,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Resolve commit message for notification
+        id: meta-notify
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SHA="${{ github.event.pull_request.merge_commit_sha }}"
+            MSG="${{ github.event.pull_request.title }}"
+          else
+            SHA="${{ github.sha }}"
+            MSG="${{ github.event.head_commit.message }}"
+          fi
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "msg<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$MSG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Send failure notification
         if: env.DEPLOY_WEBHOOK_URL != ''
         env:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          COMMIT_SHA: ${{ github.sha }}
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_SHA: ${{ steps.meta-notify.outputs.sha }}
+          COMMIT_MESSAGE: ${{ steps.meta-notify.outputs.msg }}
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

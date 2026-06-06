@@ -221,3 +221,4 @@ Tras la consolidación, el repo quedó con una sola rama activa:
 - Prettier reformateó el archivo mergeado al estilo del repo (un solo commit `style(sanitization)`).
 - Gates en `develop` post-merge: ✅ lint, ✅ format, ✅ test (15/15), ✅ typecheck, ✅ build, ✅ doctor 100/100.
 - Default branch en GitHub: `develop`. `origin/HEAD` ya no apunta a `master` (que ya no existe).
+# sáb 06 jun 2026 16:26:22 -05
