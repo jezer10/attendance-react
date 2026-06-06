@@ -280,16 +280,13 @@ export const markAutomationNow = async (action: "entrada" | "salida") => {
 
   const eventType = action === "entrada" ? "entry" : "exit";
 
-  const response = await authorizedFetch(
-    `${API_BASE}/api/v1/attendance/mark`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ eventType }),
-    }
-  );
+  const response = await authorizedFetch(`${API_BASE}/api/v1/attendance/mark`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ eventType }),
+  });
 
   await handleJson(response);
 };
