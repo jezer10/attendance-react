@@ -1,4 +1,4 @@
-name: Promote develop → main
+name: Promote develop → master
 
 on:
   push:
@@ -61,9 +61,9 @@ jobs:
           echo "⏱️ Timeout esperando checks de develop (5 min)"
           exit 1
 
-  # ─── 2. Abre o actualiza el PR develop → main con auto-merge ───────────────
+  # ─── 2. Abre o actualiza el PR develop → master con auto-merge ─────────────
   open-pr:
-    name: Open or update PR develop → main
+    name: Open or update PR develop → master
     needs: wait-ci
     runs-on: ubuntu-latest
     permissions:
@@ -82,38 +82,38 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Open or update PR develop → main
+      - name: Open or update PR develop → master
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
 
-          # Verifica que develop no esté atrás de main (por si alguien pusheó directo a main).
+          # Verifica que develop no esté atrás de master (por si alguien pusheó directo a master).
           BEHIND=$(gh api \
             -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/compare/main...develop" \
+            "/repos/${{ github.repository }}/compare/master...develop" \
             --jq '.behind_by')
           AHEAD=$(gh api \
             -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/compare/main...develop" \
+            "/repos/${{ github.repository }}/compare/master...develop" \
             --jq '.ahead_by')
 
-          echo "develop está $AHEAD commits ahead, $BEHIND commits behind main"
+          echo "develop está $AHEAD commits ahead, $BEHIND commits behind master"
 
           if [ "$AHEAD" = "0" ]; then
-            echo "Nada que promover: develop ya está en main"
+            echo "Nada que promover: develop ya está en master"
             exit 0
           fi
 
           if [ "$BEHIND" != "0" ]; then
-            echo "❌ develop está $BEHIND commits behind main. Resolver manualmente antes de promover."
-            echo "   Sugerencia: merge main → develop primero, o rebase develop sobre main."
+            echo "❌ develop está $BEHIND commits behind master. Resolver manualmente antes de promover."
+            echo "   Sugerencia: merge master → develop primero, o rebase develop sobre master."
             exit 1
           fi
 
-          # Busca PR existente develop → main
+          # Busca PR existente develop → master
           EXISTING_PR=$(gh pr list \
-            --base main \
+            --base master \
             --head develop \
             --state open \
             --json number --jq '.[0].number // empty')
@@ -122,20 +122,20 @@ jobs:
             echo "ℹ️ PR #$EXISTING_PR ya existe; habilitando auto-merge"
             gh pr merge "$EXISTING_PR" --auto --squash --delete-branch=false
           else
-            echo "🆕 Creando PR develop → main"
+            echo "🆕 Creando PR develop → master"
             PR_URL=$(gh pr create \
-              --base main \
+              --base master \
               --head develop \
-              --title "chore(release): promote develop to main" \
-              --body "Automated promotion of develop to main.
+              --title "chore(release): promote develop to master" \
+              --body "Automated promotion of develop to master.
 
           - Triggered by: push to develop (commit \`${GITHUB_SHA:0:7}\`)
           - Source: \`develop\`
-          - Target: \`main\`
+          - Target: \`master\`
           - Strategy: squash
 
           Auto-merge will fire when all required checks pass on this PR. The
-          push to \`main\` then triggers \`.github/workflows/auto-deploy.yml\`
+          push to \`master\` then triggers \`.github/workflows/auto-deploy.yml\`
           which builds the image and deploys to the production VPS." \
               --reviewer '')
 
