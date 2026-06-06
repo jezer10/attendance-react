@@ -17,9 +17,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.96.2
         version: 5.100.14(react@19.2.6)
-      google-libphonenumber:
-        specifier: ^3.2.43
-        version: 3.2.44
       i18n-iso-countries:
         specifier: ^7.14.0
         version: 7.14.0
@@ -1058,10 +1055,6 @@ packages:
   globals@16.5.0:
     resolution: {integrity: sha512-c/c15i26VrJ4IRt5Z89DnIzCGDn9EcebibhAOjw5ibqEHsE1wLUgkPn9RDmNcUKyU87GeaL633nyJ+pplFR2ZQ==}
     engines: {node: '>=18'}
-
-  google-libphonenumber@3.2.44:
-    resolution: {integrity: sha512-9p2TghluF2LTChFMLWsDRD5N78SZDsILdUk4gyqYxBXluCyxoPiOq+Fqt7DKM+LUd33+OgRkdrc+cPR93AypCQ==}
-    engines: {node: '>=0.10'}
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -2399,8 +2392,6 @@ snapshots:
   globals@14.0.0: {}
 
   globals@16.5.0: {}
-
-  google-libphonenumber@3.2.44: {}
 
   graceful-fs@4.2.11: {}
 
