@@ -158,8 +158,8 @@ jobs:
             --json number --jq '.[0].number // empty')
 
           if [ -n "$EXISTING_PR" ]; then
-            echo "ℹ️ PR #$EXISTING_PR ya existe; habilitando auto-merge"
-            gh pr merge "$EXISTING_PR" --auto --squash --delete-branch=false
+            echo "ℹ️ PR #$EXISTING_PR ya existe; habilitando auto-merge (merge commit)"
+            gh pr merge "$EXISTING_PR" --auto --merge --delete-branch=false
           else
             echo "🆕 Creando PR develop → master"
             PR_URL=$(gh pr create \
@@ -171,7 +171,7 @@ jobs:
           - Triggered by: push to develop (commit \`${GITHUB_SHA:0:7}\`)
           - Source: \`develop\`
           - Target: \`master\`
-          - Strategy: squash
+          - Strategy: merge commit (preserves ancestry for next sync)
 
           Auto-merge will fire when all required checks pass on this PR. The
           push to \`master\` then triggers \`.github/workflows/auto-deploy.yml\`
@@ -180,5 +180,5 @@ jobs:
 
             echo "PR creado: $PR_URL"
             PR_NUMBER=$(echo "$PR_URL" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+')
-            gh pr merge "$PR_NUMBER" --auto --squash --delete-branch=false
+            gh pr merge "$PR_NUMBER" --auto --merge --delete-branch=false
           fi
