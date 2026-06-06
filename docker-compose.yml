@@ -9,6 +9,11 @@ services:
       - general_bridge
     ports:
       - "80"
+    environment:
+      # URL del backend API al que Nginx proxiará /api/*.
+      # Default vacío: la app usa URLs relativas (/api/v1/...) y Nginx
+      # hace proxy_pass a este backend.
+      - API_BACKEND_URL=${API_BACKEND_URL:-}
 
 networks:
   general_bridge:

@@ -109,6 +109,7 @@ jobs:
 
             # Pull new image and recreate container
             export CONTAINER_IMAGE="ghcr.io/${{ github.repository }}:master"
+            export API_BACKEND_URL="${{ secrets.API_BACKEND_URL }}"
             docker compose pull
             docker compose up -d --remove-orphans
 

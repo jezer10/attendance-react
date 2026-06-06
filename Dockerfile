@@ -16,7 +16,11 @@ COPY . .
 RUN pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
 
 # Serve
+# nginx:alpine ejecuta `envsubst` automáticamente sobre archivos en
+# /etc/nginx/templates/*.template, copiando el resultado a /etc/nginx/conf.d/.
+# API_BACKEND_URL se inyecta como variable de entorno del container.
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV API_BACKEND_URL=
 EXPOSE 80
