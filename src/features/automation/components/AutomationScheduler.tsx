@@ -248,7 +248,8 @@ const AutomationScheduler = ({
       <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md flex justify-between items-center h-20 px-8 border-b border-black/5">
         <div className="text-xl font-extrabold text-black uppercase tracking-[0.2em] font-display cursor-pointer">MARK</div>
         <div className="flex gap-8 items-center">
-          <button 
+          <button
+            type="button"
             onClick={() => logout()}
             disabled={isLoggingOut}
             className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-black text-white hover:bg-zinc-800 transition-all font-light cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -348,6 +349,7 @@ const AutomationScheduler = ({
                     return (
                       <button
                         key={day}
+                        type="button"
                         onClick={() => setValue("entry.dias", toggleDay(entry.dias, day), { shouldValidate: true })}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-xs font-display font-light cursor-pointer ${
                           isSelected 
@@ -396,6 +398,7 @@ const AutomationScheduler = ({
                     return (
                       <button
                         key={day}
+                        type="button"
                         onClick={() => setValue("exit.dias", toggleDay(exit.dias, day), { shouldValidate: true })}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-xs font-display font-light cursor-pointer ${
                           isSelected 
@@ -468,14 +471,16 @@ const AutomationScheduler = ({
       <div className="fixed bottom-0 left-0 right-0 p-8 z-[60] flex justify-center pointer-events-none mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="glass-panel max-w-3xl w-full px-10 py-5 rounded-full flex items-center justify-between pointer-events-auto border-t border-white/60">
           <div className="flex gap-4">
-            <button 
+            <button
+              type="button"
               onClick={() => handleManualMark("entrada")}
               disabled={!!isMarking}
               className="px-8 py-3 rounded-full font-display text-[10px] uppercase tracking-[0.2em] bg-white border border-black/10 hover:bg-black hover:text-white hover:border-black transition-all text-black font-light disabled:opacity-50 cursor-pointer"
             >
               {isMarking === "entrada" ? "Marcando..." : "Registrar Entrada"}
             </button>
-            <button 
+            <button
+              type="button"
               onClick={() => handleManualMark("salida")}
               disabled={!!isMarking}
               className="px-8 py-3 rounded-full font-display text-[10px] uppercase tracking-[0.2em] bg-white border border-black/10 hover:bg-black hover:text-white hover:border-black transition-all text-black font-light disabled:opacity-50 cursor-pointer"
@@ -485,7 +490,8 @@ const AutomationScheduler = ({
           </div>
           <div className="flex items-center gap-6">
             <div className="h-8 w-[1px] bg-black/10"></div>
-            <button 
+            <button
+              type="button"
               onClick={handleSave}
               disabled={isSaving || !isValid}
               className="w-14 h-14 bg-black text-white rounded-full flex items-center justify-center hover:scale-110 transition-all active:scale-95 border border-white/10 font-light disabled:bg-zinc-400 cursor-pointer"

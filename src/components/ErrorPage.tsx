@@ -59,6 +59,7 @@ export default function ErrorPage() {
 
         <div className="flex flex-col gap-4 w-full pt-4 border-t border-black/[0.05]">
           <button
+            type="button"
             onClick={() => window.location.reload()}
             className="w-full bg-primary text-on-primary px-8 py-4 rounded-token font-body font-medium transition-all hover:bg-zinc-800 active:scale-[0.98] cursor-pointer shadow-lg shadow-black/5"
           >

@@ -45,6 +45,9 @@ export const useSaveAutomation = () => {
 export const useManualActionToken = () => {
   return useMutation({
     mutationFn: (action: "entrada" | "salida") => markAutomationNow(action),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: automationKeys.rule() });
+    },
   });
 };
 

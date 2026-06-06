@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import {
   Circle,
   MapContainer,
@@ -54,16 +54,6 @@ const MapClickHandler = ({
 }
 
 const LocationMap = ({ position, radius, onPositionChange }: LocationMapProps) => {
-  const [isReady, setIsReady] = useState(false)
-
-  useEffect(() => {
-    setIsReady(true)
-  }, [])
-
-  if (!isReady) {
-    return <div className="h-64 w-full rounded-xl border border-slate-200 bg-slate-100" />
-  }
-
   const [lat, lng] = position ?? DEFAULT_POSITION
 
   return (
