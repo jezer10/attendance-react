@@ -11,7 +11,7 @@ import { queryClient } from "../../../lib/queryClient";
 import type { PersistedAutomationPayload } from "../components/types";
 import type { AttendanceCredentialsPayload } from "../services/automationService";
 
-export const automationKeys = {
+const automationKeys = {
   all: ["automation"] as const,
   rule: () => [...automationKeys.all, "rule"] as const,
   timezones: () => [...automationKeys.all, "timezones"] as const,

@@ -14,13 +14,13 @@ const RandomWindowSection = ({
   const groupId = "random-window-section";
   const customInputId = `${groupId}-custom`;
   return (
-    <div className="space-y-3" role="group" aria-labelledby={`${groupId}-label`}>
-      <span
+    <fieldset className="space-y-3 border-0 p-0 m-0" aria-labelledby={`${groupId}-label`}>
+      <legend
         id={`${groupId}-label`}
         className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1"
       >
         Minutos de tolerancia
-      </span>
+      </legend>
       <div className="flex flex-wrap gap-2">
         <div className="flex overflow-hidden rounded-full border border-black/5 w-fit bg-white/40">
           {PRESETS.map((preset) => (
@@ -65,7 +65,7 @@ const RandomWindowSection = ({
           </button>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 };
 
