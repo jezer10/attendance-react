@@ -185,13 +185,39 @@
 ## 6. Commits del plan (orden cronológico)
 
 ```
-fcc308b  ci(sanitization): phase 7 — CI, Docker, nginx hardening
-548e289  refactor(sanitization): phase 5 — split AutomationScheduler + drop dead exports
-3719f38  perf(sanitization): phase 4 — performance
-4bfc604  fix(sanitization): phase 3 — accessibility lote 1
-e9bcddc  fix(sanitization): phase 2 — quick bug wins
-37eaf09  chore(sanitization): phase 1 — pnpm hardening + drop unused google-libphonenumber
+fase 1   37eaf09  chore(sanitization): phase 1 — pnpm hardening + drop unused google-libphonenumber
+fase 2   e9bcddc  fix(sanitization): phase 2 — quick bug wins
+fase 3   4bfc604  fix(sanitization): phase 3 — accessibility lote 1
+fase 4   3719f38  perf(sanitization): phase 4 — performance
+fase 5   548e289  refactor(sanitization): phase 5 — split AutomationScheduler + drop dead exports
+fase 6   5450dc7  chore(sanitization): phase 6 — vitest + prettier + smoke tests
+fase 7   fcc308b  ci(sanitization): phase 7 — CI, Docker, nginx hardening
+docs     545a229  docs(sanitization): update SANITIZACION.md with final results
+merge    c58e1ad  Merge branch 'master' into develop
+style    85e9afe  style(sanitization): apply prettier to merged automationService.ts
 ```
 
-> Los commits de Fase 6 (vitest + prettier) se intercalan con Fase 7 al
-> ejecutar `pnpm format` antes del commit de Fase 7.
+## 7. Estrategia de branching (post-saneamiento)
+
+Tras la consolidación, el repo quedó con una sola rama activa:
+
+| Rama | Estado | Notas |
+|------|--------|-------|
+| `develop` (local + `origin/develop`) | ✅ activa, default en GitHub | Contiene los 8 commits de sanitization + el fix `539d933` (mark-endpoint). |
+| `master` | 🗑️ borrada (local + remoto) | Reemplazada por `develop`. GitHub no permite borrar la rama default, así que se cambió el default a `develop` antes de borrar `master` (`gh repo edit jezer10/attendance-react --default-branch develop`). |
+| `fix/attendance-mark-endpoint` | 🗑️ borrada en origin | Ya mergeada en `develop` (PR #7). GitHub prunea automáticamente las branches con PR cerrado. |
+| `chore/sync-develop-with-master` | 🗑️ borrada en origin | Ya mergeada en `develop` (PR #6). Idem. |
+
+### Política recomendada a futuro
+
+- **`develop`** es la rama de integración. PRs contra develop.
+- Para deploys, abrir PRs con tag semver o usar `workflow_dispatch` con input de versión, similar al `.github/workflows/deploy.yml` actual.
+- Mantener `develop` siempre verde: CI corre lint + format + tsc + test + build + doctor en cada push.
+- Feature branches: nombre `<tipo>/<scope-corto>`, hacer PR contra develop, mergear, borrar branch. No acumular ramas zombie.
+
+### Resultado de la consolidación
+
+- Merge conflict único y mínimo: 4 líneas en `automationService.ts` (URL + body del endpoint `markAutomationNow`). Resuelto tomando el fix de `develop` (HEAD) que es el comportamiento correcto del API.
+- Prettier reformateó el archivo mergeado al estilo del repo (un solo commit `style(sanitization)`).
+- Gates en `develop` post-merge: ✅ lint, ✅ format, ✅ test (15/15), ✅ typecheck, ✅ build, ✅ doctor 100/100.
+- Default branch en GitHub: `develop`. `origin/HEAD` ya no apunta a `master` (que ya no existe).
