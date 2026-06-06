@@ -4,7 +4,6 @@ services:
     # En desarrollo local, usa `build: .` directamente con `docker compose up --build`.
     image: ${CONTAINER_IMAGE:-ghcr.io/owner/attendance-react:latest}
     build: .
-    container_name: react-vite-app
     restart: unless-stopped
     networks:
       - general_bridge
