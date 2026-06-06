@@ -20,23 +20,39 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Verificando estado del último commit en develop..."
+          # Checks bloqueantes. Se listan explícitamente porque react-doctor
+          # está configurado con continue-on-error en lint.yml y no debe
+          # bloquear la promoción.
+          BLOCKING=("lint" "test" "build")
+
+          echo "Verificando estado de checks bloqueantes (${BLOCKING[*]}) en develop..."
           SHA="${{ github.sha }}"
-          for i in $(seq 1 30); do
-            STATUS=$(gh api \
+          for i in $(seq 1 60); do
+            CONCLUSIONS=$(gh api \
               -H "Accept: application/vnd.github+json" \
               "/repos/${{ github.repository }}/commits/${SHA}/check-runs" \
-              --jq '[.check_runs[] | select(.conclusion != null) | .conclusion] | unique')
-            echo "Intento $i: estados = $STATUS"
+              --jq '[.check_runs[] | select(.name == "lint" or .name == "test" or .name == "build") | {name, conclusion}]')
 
-            if [ "$STATUS" = '["success"]' ]; then
-              echo "✅ Todos los checks pasaron en develop"
-              exit 0
+            echo "Intento $i: checks bloqueantes ="
+            echo "$CONCLUSIONS" | sed 's/^/  /'
+
+            # Detecta fallos en checks bloqueantes
+            FAILED=$(echo "$CONCLUSIONS" | jq -r '.[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | .name')
+            if [ -n "$FAILED" ]; then
+              echo "❌ Checks bloqueantes fallaron: $FAILED"
+              exit 1
             fi
 
-            if echo "$STATUS" | grep -q '"failure"\|"cancelled"\|"timed_out"\|"action_required"'; then
-              echo "❌ Algún check falló en develop; no se promueve a main"
-              exit 1
+            # Verifica que todos los bloqueantes estén success
+            NOT_SUCCESS=$(echo "$CONCLUSIONS" | jq -r '.[] | select(.conclusion != "success") | .name')
+            if [ -z "$NOT_SUCCESS" ]; then
+              # Doble check: que los 3 checks estén presentes
+              COUNT=$(echo "$CONCLUSIONS" | jq 'length')
+              if [ "$COUNT" -eq 3 ]; then
+                echo "✅ Los 3 checks bloqueantes pasaron"
+                exit 0
+              fi
+              echo "⏳ Esperando los 3 checks bloqueantes (vistos: $COUNT)..."
             fi
 
             sleep 5
