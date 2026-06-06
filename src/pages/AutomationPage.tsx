@@ -8,7 +8,7 @@ import {
   useManualActionToken,
   useSaveAttendanceCredentials,
   useAttendanceCredentials,
-} from "../features/automation";
+} from "../features/automation/hooks/useAutomation";
 import { AuthorizationError } from "../features/auth/services/authService";
 import AutomationScheduler from "../features/automation/components/AutomationScheduler";
 import AutomationSkeleton from "../features/automation/components/AutomationSkeleton";

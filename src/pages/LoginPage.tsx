@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 
-import { useAuth, getStoredTokens } from "../features/auth";
+import { useAuth } from "../features/auth/hooks/useAuth";
+import { getStoredTokens } from "../features/auth/services/authService";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

@@ -86,11 +86,16 @@ const isDayKey = (value: string): value is DayKey => DAY_KEYS.includes(value as 
 
 const normalizeDays = (days?: Array<string | null>): DayKey[] => {
   if (!Array.isArray(days)) return [];
-  const mapped = days
-    .filter((day): day is string => typeof day === "string" && day.trim() !== "")
-    .map((day) => ISO_TO_DAY_KEY[day] ?? day)
-    .filter(isDayKey);
-  return Array.from(new Set(mapped));
+  const seen = new Set<DayKey>();
+  const result: DayKey[] = [];
+  for (const day of days) {
+    if (typeof day !== "string" || day.trim() === "") continue;
+    const key = (ISO_TO_DAY_KEY[day] ?? day) as DayKey;
+    if (!isDayKey(key) || seen.has(key)) continue;
+    seen.add(key);
+    result.push(key);
+  }
+  return result;
 };
 
 function _parseRule(data: RawInput): AutomationRule {

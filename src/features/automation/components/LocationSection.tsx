@@ -1,4 +1,4 @@
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useMemo, useState } from 'react'
 import { DEFAULT_POSITION } from './constants'
 
 const LocationMap = lazy(() => import('./LocationMap'))
@@ -49,6 +49,10 @@ const LocationSection = ({
 
   const effectiveLat = lat ?? DEFAULT_POSITION[0];
   const effectiveLng = lng ?? DEFAULT_POSITION[1];
+  const effectivePosition = useMemo<[number, number]>(
+    () => [effectiveLat, effectiveLng],
+    [effectiveLat, effectiveLng]
+  );
 
   return (
     <section className="glass-panel p-8 rounded-token space-y-6 border border-black/5">
@@ -86,7 +90,7 @@ const LocationSection = ({
         <div className="relative h-[220px] rounded-token overflow-hidden border border-black/5">
           <Suspense fallback={<div className="w-full h-full bg-neutral animate-pulse" />}>
             <LocationMap
-              position={[effectiveLat, effectiveLng]}
+              position={effectivePosition}
               radius={radius}
               onPositionChange={(coords) => onLocationChange({ address, lat: coords.lat, lng: coords.lng, radius })}
             />

@@ -23,7 +23,7 @@ import {
   toUtcTime,
 } from "./utils";
 
-import { useAuth } from "../../auth";
+import { useAuth } from "../../auth/hooks/useAuth";
 
 const ISO_DAY_MAP: Record<DayKey, IsoDay> = {
   Lun: "monday",
