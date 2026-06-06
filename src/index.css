@@ -37,8 +37,8 @@
   display: grid;
   border-radius: 50%;
   background:
-    linear-gradient(0deg ,rgb(0 0 0/50%) 30%,#0000 0 70%,rgb(0 0 0/100%) 0) 50%/8% 100%,
-    linear-gradient(90deg,rgb(0 0 0/25%) 30%,#0000 0 70%,rgb(0 0 0/75% ) 0) 50%/100% 8%;
+    linear-gradient(0deg, rgb(0 0 0/50%) 30%, #0000 0 70%, rgb(0 0 0/100%) 0) 50%/8% 100%,
+    linear-gradient(90deg, rgb(0 0 0/25%) 30%, #0000 0 70%, rgb(0 0 0/75%) 0) 50%/100% 8%;
   background-repeat: no-repeat;
   animation: l23 1s infinite steps(12);
 }
@@ -53,7 +53,9 @@
 }
 
 @keyframes l23 {
-  100% {transform: rotate(1turn)}
+  100% {
+    transform: rotate(1turn);
+  }
 }
 
 @layer base {
@@ -61,15 +63,20 @@
     @apply bg-background font-body text-slate-900 antialiased;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-display;
   }
-  
+
   .premium-loader::before,
   .premium-loader::after {
     @apply premium-loader-before-after;
   }
-  
+
   .premium-loader::after {
     opacity: 0.83;
     transform: rotate(60deg);

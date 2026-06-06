@@ -1,21 +1,14 @@
-import { useEffect } from 'react'
-import {
-  Circle,
-  MapContainer,
-  Marker,
-  TileLayer,
-  useMap,
-  useMapEvents,
-} from 'react-leaflet'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useEffect } from "react";
+import { Circle, MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-import { DEFAULT_POSITION } from './constants'
+import { DEFAULT_POSITION } from "./constants";
 
 interface LocationMapProps {
-  position: [number, number]
-  radius: number | null
-  onPositionChange: (coords: { lat: number; lng: number }) => void
+  position: [number, number];
+  radius: number | null;
+  onPositionChange: (coords: { lat: number; lng: number }) => void;
 }
 
 // const markerIconUrls = {
@@ -30,31 +23,31 @@ interface LocationMapProps {
 // L.Icon.Default.mergeOptions(markerIconUrls)
 
 const MapViewUpdater = ({ position }: { position: [number, number] }) => {
-  const map = useMap()
+  const map = useMap();
 
   useEffect(() => {
-    map.setView(position)
-  }, [map, position])
+    map.setView(position);
+  }, [map, position]);
 
-  return null
-}
+  return null;
+};
 
 const MapClickHandler = ({
   onSelect,
 }: {
-  onSelect: (coords: { lat: number; lng: number }) => void
+  onSelect: (coords: { lat: number; lng: number }) => void;
 }) => {
   useMapEvents({
     click: (event) => {
-      onSelect({ lat: event.latlng.lat, lng: event.latlng.lng })
+      onSelect({ lat: event.latlng.lat, lng: event.latlng.lng });
     },
-  })
+  });
 
-  return null
-}
+  return null;
+};
 
 const LocationMap = ({ position, radius, onPositionChange }: LocationMapProps) => {
-  const [lat, lng] = position ?? DEFAULT_POSITION
+  const [lat, lng] = position ?? DEFAULT_POSITION;
 
   return (
     <MapContainer
@@ -74,9 +67,9 @@ const LocationMap = ({ position, radius, onPositionChange }: LocationMapProps) =
         position={[lat, lng]}
         eventHandlers={{
           dragend: (event) => {
-            const marker = event.target as L.Marker
-            const nextPosition = marker.getLatLng()
-            onPositionChange({ lat: nextPosition.lat, lng: nextPosition.lng })
+            const marker = event.target as L.Marker;
+            const nextPosition = marker.getLatLng();
+            onPositionChange({ lat: nextPosition.lat, lng: nextPosition.lng });
           },
         }}
       />
@@ -85,14 +78,14 @@ const LocationMap = ({ position, radius, onPositionChange }: LocationMapProps) =
           center={[lat, lng]}
           radius={radius}
           pathOptions={{
-            color: '#22c55e',
-            fillColor: '#22c55e',
+            color: "#22c55e",
+            fillColor: "#22c55e",
             fillOpacity: 0.15,
           }}
         />
       )}
     </MapContainer>
-  )
-}
+  );
+};
 
-export default LocationMap
+export default LocationMap;

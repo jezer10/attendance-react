@@ -12,7 +12,8 @@ const HeroSection = () => {
     <section className="flex flex-col md:flex-row justify-between items-end gap-6 mb-6">
       <div className="space-y-2">
         <h1 className="text-5xl font-display tracking-tight text-black leading-tight font-light transition-all duration-700 animate-in fade-in slide-in-from-left-4">
-          Control de <br />Entradas y Salidas
+          Control de <br />
+          Entradas y Salidas
         </h1>
         <p className="text-on-surface-variant font-medium text-lg max-w-xl font-light">
           Configura fácilmente el horario y el lugar de trabajo de tu equipo.

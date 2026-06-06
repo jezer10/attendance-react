@@ -111,21 +111,15 @@ const buildPersistPayload = (
 ): PersistedAutomationPayload => {
   const normalizedEntry = {
     ...values.entry,
-    hora_utc: values.entry.habilitado
-      ? toUtcTime(values.entry.hora_local, offsetMinutes)
-      : null,
+    hora_utc: values.entry.habilitado ? toUtcTime(values.entry.hora_local, offsetMinutes) : null,
   };
   const normalizedExit = {
     ...values.exit,
-    hora_utc: values.exit.habilitado
-      ? toUtcTime(values.exit.hora_local, offsetMinutes)
-      : null,
+    hora_utc: values.exit.habilitado ? toUtcTime(values.exit.hora_local, offsetMinutes) : null,
   };
 
   const dialCode = getDialCode(values.phoneCountry);
-  const fullPhoneNumber = values.phoneNumber
-    ? `+${dialCode}${values.phoneNumber}`
-    : null;
+  const fullPhoneNumber = values.phoneNumber ? `+${dialCode}${values.phoneNumber}` : null;
 
   return {
     isActive: values.isActive,
@@ -134,23 +128,15 @@ const buildPersistPayload = (
     schedule: {
       entry: {
         enabled: normalizedEntry.habilitado,
-        localTime: normalizedEntry.habilitado
-          ? normalizedEntry.hora_local || null
-          : null,
+        localTime: normalizedEntry.habilitado ? normalizedEntry.hora_local || null : null,
         utcTime: normalizedEntry.hora_utc,
-        days: normalizedEntry.habilitado
-          ? normalizedEntry.dias.map((d) => ISO_DAY_MAP[d])
-          : [],
+        days: normalizedEntry.habilitado ? normalizedEntry.dias.map((d) => ISO_DAY_MAP[d]) : [],
       },
       exit: {
         enabled: normalizedExit.habilitado,
-        localTime: normalizedExit.habilitado
-          ? normalizedExit.hora_local || null
-          : null,
+        localTime: normalizedExit.habilitado ? normalizedExit.hora_local || null : null,
         utcTime: normalizedExit.hora_utc,
-        days: normalizedExit.habilitado
-          ? normalizedExit.dias.map((d) => ISO_DAY_MAP[d])
-          : [],
+        days: normalizedExit.habilitado ? normalizedExit.dias.map((d) => ISO_DAY_MAP[d]) : [],
       },
     },
     location: {

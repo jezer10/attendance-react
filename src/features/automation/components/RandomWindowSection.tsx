@@ -7,10 +7,7 @@ interface RandomWindowSectionProps {
 
 const PRESETS = [0, 5, 10, 15];
 
-const RandomWindowSection = ({
-  value,
-  onChange,
-}: RandomWindowSectionProps) => {
+const RandomWindowSection = ({ value, onChange }: RandomWindowSectionProps) => {
   const groupId = "random-window-section";
   const customInputId = `${groupId}-custom`;
   return (

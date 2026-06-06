@@ -2,15 +2,16 @@ import { useRouteError, isRouteErrorResponse, Link } from "react-router";
 
 export default function ErrorPage() {
   const error = useRouteError();
-  
+
   let errorMessage = "Ocurrió un error inesperado al procesar tu solicitud.";
   let errorTitle = "Algo salió mal";
 
   if (isRouteErrorResponse(error)) {
     errorTitle = `${error.status}`;
-    errorMessage = typeof error.data === "string" 
-      ? error.data 
-      : (error.data?.message || error.statusText || "No se pudo encontrar la página solicitada.");
+    errorMessage =
+      typeof error.data === "string"
+        ? error.data
+        : error.data?.message || error.statusText || "No se pudo encontrar la página solicitada.";
   } else if (error instanceof Error) {
     errorMessage = error.message;
     if (error.name === "NetworkError") {
@@ -52,7 +53,7 @@ export default function ErrorPage() {
         <h1 className="text-4xl font-display font-bold text-primary mb-6 tracking-tight">
           {errorTitle}
         </h1>
-        
+
         <p className="text-on-surface-variant font-body mb-12 text-lg leading-relaxed max-w-[280px] mx-auto opacity-80">
           {errorMessage}
         </p>
@@ -65,7 +66,7 @@ export default function ErrorPage() {
           >
             Intentar de nuevo
           </button>
-          
+
           <Link
             to="/"
             className="w-full bg-transparent text-primary/60 hover:text-primary px-8 py-3 rounded-token font-body font-medium transition-all active:scale-[0.98] text-center cursor-pointer text-sm"
@@ -77,7 +78,7 @@ export default function ErrorPage() {
         {/* Decorative corner accent */}
         <div className="absolute top-4 right-4 w-12 h-12 pointer-events-none opacity-5">
           <svg viewBox="0 0 48 48" fill="none" className="w-full h-full text-primary">
-             <path d="M4 4H44V44" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M4 4H44V44" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </div>
       </div>

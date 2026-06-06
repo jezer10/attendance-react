@@ -49,12 +49,18 @@ const PhoneNumberSection = ({
   }, [currentCountry.id]);
 
   return (
-    <section className={`glass-panel p-8 rounded-token space-y-6 border border-black/5 ${className}`}>
+    <section
+      className={`glass-panel p-8 rounded-token space-y-6 border border-black/5 ${className}`}
+    >
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center">
-          <span className="material-symbols-outlined text-black text-lg font-light">notifications_active</span>
+          <span className="material-symbols-outlined text-black text-lg font-light">
+            notifications_active
+          </span>
         </div>
-        <h2 className="font-display text-sm uppercase tracking-[0.1em] text-black font-light">Notificaciones</h2>
+        <h2 className="font-display text-sm uppercase tracking-[0.1em] text-black font-light">
+          Notificaciones
+        </h2>
       </div>
 
       <div className="space-y-5">
@@ -64,7 +70,12 @@ const PhoneNumberSection = ({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="phone-country" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">País</label>
+            <label
+              htmlFor="phone-country"
+              className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light"
+            >
+              País
+            </label>
             <div className="relative">
               <select
                 id="phone-country"
@@ -78,12 +89,22 @@ const PhoneNumberSection = ({
                   </option>
                 ))}
               </select>
-              <span aria-hidden="true" className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 pointer-events-none text-base">expand_more</span>
+              <span
+                aria-hidden="true"
+                className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 pointer-events-none text-base"
+              >
+                expand_more
+              </span>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="phone-number" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Número de Teléfono</label>
+            <label
+              htmlFor="phone-number"
+              className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light"
+            >
+              Número de Teléfono
+            </label>
             <input
               id="phone-number"
               type="text"
@@ -102,12 +123,18 @@ const PhoneNumberSection = ({
         {showValidation && error ? (
           <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 rounded-lg border border-rose-100">
             <span className="material-symbols-outlined text-[14px] text-rose-500">error</span>
-            <span className="text-[9px] uppercase tracking-widest text-rose-500 font-display font-light">{error}</span>
+            <span className="text-[9px] uppercase tracking-widest text-rose-500 font-display font-light">
+              {error}
+            </span>
           </div>
         ) : (
           <div className="flex items-center gap-2 px-3 py-2 bg-black/5 rounded-lg">
-            <span className="material-symbols-outlined text-[14px] text-black/40 font-light">info</span>
-            <span className="text-[9px] uppercase tracking-widest text-black/40 font-display font-light">Registro vía WhatsApp</span>
+            <span className="material-symbols-outlined text-[14px] text-black/40 font-light">
+              info
+            </span>
+            <span className="text-[9px] uppercase tracking-widest text-black/40 font-display font-light">
+              Registro vía WhatsApp
+            </span>
           </div>
         )}
       </div>

@@ -8,25 +8,13 @@ interface AttendanceCredentialsMetadata {
 
 interface CredentialsSectionProps {
   initialCredentials: AttendanceCredentialsMetadata | null;
-  onSave: (payload: {
-    companyId: number;
-    userId: number;
-    password: string;
-  }) => Promise<void>;
+  onSave: (payload: { companyId: number; userId: number; password: string }) => Promise<void>;
   isSaving: boolean;
 }
 
-const CredentialsSection = ({
-  initialCredentials,
-  onSave,
-  isSaving,
-}: CredentialsSectionProps) => {
-  const [companyId, setCompanyId] = useState(
-    initialCredentials?.companyId?.toString() ?? ""
-  );
-  const [userId, setUserId] = useState(
-    initialCredentials?.userId?.toString() ?? ""
-  );
+const CredentialsSection = ({ initialCredentials, onSave, isSaving }: CredentialsSectionProps) => {
+  const [companyId, setCompanyId] = useState(initialCredentials?.companyId?.toString() ?? "");
+  const [userId, setUserId] = useState(initialCredentials?.userId?.toString() ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -50,12 +38,19 @@ const CredentialsSection = ({
         <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center">
           <span className="material-symbols-outlined text-black text-lg font-light">security</span>
         </div>
-        <h2 className="font-display text-sm uppercase tracking-[0.1em] text-black font-light">Seguridad de Acceso</h2>
+        <h2 className="font-display text-sm uppercase tracking-[0.1em] text-black font-light">
+          Seguridad de Acceso
+        </h2>
       </div>
-      
+
       <div className="space-y-5">
         <div className="space-y-2">
-          <label htmlFor="credentials-company-id" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Empresa</label>
+          <label
+            htmlFor="credentials-company-id"
+            className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light"
+          >
+            ID Empresa
+          </label>
           <input
             id="credentials-company-id"
             type="number"
@@ -67,7 +62,12 @@ const CredentialsSection = ({
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="credentials-user-id" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Usuario</label>
+          <label
+            htmlFor="credentials-user-id"
+            className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light"
+          >
+            ID Usuario
+          </label>
           <input
             id="credentials-user-id"
             type="number"
@@ -79,7 +79,12 @@ const CredentialsSection = ({
         </div>
 
         <div className="space-y-2">
-          <label htmlFor="credentials-password" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Contraseña</label>
+          <label
+            htmlFor="credentials-password"
+            className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light"
+          >
+            Contraseña
+          </label>
           <div className="relative">
             <input
               id="credentials-password"
@@ -114,7 +119,9 @@ const CredentialsSection = ({
       {initialCredentials?.hasPassword && (
         <div className="flex items-center gap-2 px-3 py-2 bg-black/5 rounded-lg">
           <span className="material-symbols-outlined text-[14px] text-black/40">verified_user</span>
-          <span className="text-[9px] uppercase tracking-widest text-black/40 font-display">Credenciales activas</span>
+          <span className="text-[9px] uppercase tracking-widest text-black/40 font-display">
+            Credenciales activas
+          </span>
         </div>
       )}
     </section>

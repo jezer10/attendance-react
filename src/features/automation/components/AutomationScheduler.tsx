@@ -125,8 +125,12 @@ const AutomationSchedulerInner = ({
             <PhoneNumberSection
               selectedCountry={phoneCountry}
               phoneNumber={phoneNumber}
-              onCountryChange={(val) => methods.setValue("phoneCountry", val, { shouldValidate: true })}
-              onNumberChange={(val) => methods.setValue("phoneNumber", val, { shouldValidate: true })}
+              onCountryChange={(val) =>
+                methods.setValue("phoneCountry", val, { shouldValidate: true })
+              }
+              onNumberChange={(val) =>
+                methods.setValue("phoneNumber", val, { shouldValidate: true })
+              }
             />
             <CredentialsSection
               initialCredentials={initialCredentials ?? null}

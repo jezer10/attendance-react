@@ -58,7 +58,9 @@ const ScheduleBlock = ({
             id={timeInputId}
             type="time"
             value={block.hora_local}
-            onChange={(e) => setValue(`${type}.hora_local`, e.target.value, { shouldValidate: true })}
+            onChange={(e) =>
+              setValue(`${type}.hora_local`, e.target.value, { shouldValidate: true })
+            }
             className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none"
           />
         </div>
@@ -71,8 +73,14 @@ const ScheduleBlock = ({
           </div>
         )}
       </div>
-      <fieldset className="space-y-4 pt-4 border-t border-black/5 border-0 p-0 m-0" aria-labelledby={`${daysGroupId}-label`}>
-        <legend id={`${daysGroupId}-label`} className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">
+      <fieldset
+        className="space-y-4 pt-4 border-t border-black/5 border-0 p-0 m-0"
+        aria-labelledby={`${daysGroupId}-label`}
+      >
+        <legend
+          id={`${daysGroupId}-label`}
+          className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light"
+        >
           Días de trabajo
         </legend>
         <div className="flex flex-wrap gap-3">

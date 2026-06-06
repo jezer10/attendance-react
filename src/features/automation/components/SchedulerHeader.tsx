@@ -6,7 +6,9 @@ const SchedulerHeader = () => {
 
   return (
     <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md flex justify-between items-center h-20 px-8 border-b border-black/5">
-      <div className="text-xl font-extrabold text-black uppercase tracking-[0.2em] font-display cursor-pointer">MARK</div>
+      <div className="text-xl font-extrabold text-black uppercase tracking-[0.2em] font-display cursor-pointer">
+        MARK
+      </div>
       <div className="flex gap-8 items-center">
         <button
           type="button"

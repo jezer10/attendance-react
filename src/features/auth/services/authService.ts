@@ -49,7 +49,6 @@ const clearTokens = () => {
   localStorage.removeItem(LEGACY_KEY);
 };
 
-
 export const getStoredTokens = (): AuthTokens | null => {
   const accessToken = localStorage.getItem(ACCESS_KEY);
   const refreshToken = localStorage.getItem(REFRESH_KEY);
@@ -126,9 +125,7 @@ export const authenticate = async (email: string, password: string) => {
   }
 };
 
-const refreshSession = async (
-  refreshToken?: string
-): Promise<AuthTokens | null> => {
+const refreshSession = async (refreshToken?: string): Promise<AuthTokens | null> => {
   const current = getStoredTokens();
   const token = refreshToken ?? current?.refreshToken;
 
@@ -219,10 +216,7 @@ export const authorizedFetch = async (
   }
 
   const headers = new Headers(init.headers);
-  headers.set(
-    "Authorization",
-    `${tokens.tokenType ?? "Bearer"} ${tokens.accessToken}`
-  );
+  headers.set("Authorization", `${tokens.tokenType ?? "Bearer"} ${tokens.accessToken}`);
 
   const response = await fetch(input, { ...init, headers });
 
@@ -237,10 +231,7 @@ export const authorizedFetch = async (
   }
 
   const retryHeaders = new Headers(init.headers);
-  retryHeaders.set(
-    "Authorization",
-    `${refreshed.tokenType ?? "Bearer"} ${refreshed.accessToken}`
-  );
+  retryHeaders.set("Authorization", `${refreshed.tokenType ?? "Bearer"} ${refreshed.accessToken}`);
 
   return fetch(input, { ...init, headers: retryHeaders });
 };

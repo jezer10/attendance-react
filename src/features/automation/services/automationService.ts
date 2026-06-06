@@ -1,12 +1,5 @@
-import type {
-  AutomationRule,
-  DayKey,
-  PersistedAutomationPayload,
-} from "../components/types";
-import {
-  AuthorizationError,
-  authorizedFetch,
-} from "../../auth/services/authService";
+import type { AutomationRule, DayKey, PersistedAutomationPayload } from "../components/types";
+import { AuthorizationError, authorizedFetch } from "../../auth/services/authService";
 
 type RawScheduleEntry = {
   enabled?: boolean;
@@ -72,15 +65,7 @@ const normalizeTime = (value?: string) => {
   return `${match[1]}:${match[2]}`;
 };
 
-const DAY_KEYS: ReadonlyArray<DayKey> = [
-  "Lun",
-  "Mar",
-  "Mie",
-  "Jue",
-  "Vie",
-  "Sab",
-  "Dom",
-];
+const DAY_KEYS: ReadonlyArray<DayKey> = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
 
 const isDayKey = (value: string): value is DayKey => DAY_KEYS.includes(value as DayKey);
 
@@ -119,15 +104,12 @@ function _parseRule(data: RawInput): AutomationRule {
     dias: normalizeDays(exit.days),
   };
 
-  const address =
-    typeof location.address === "string" ? location.address.trim() : "";
-  const radiusMeters =
-    location.radiusMeters ?? location.radius_meters ?? null;
+  const address = typeof location.address === "string" ? location.address.trim() : "";
+  const radiusMeters = location.radiusMeters ?? location.radius_meters ?? null;
 
   return {
     activo: data.isActive ?? data.is_active ?? false,
-    ventana_aleatoria_minutos:
-      data.randomWindowMinutes ?? data.random_window_minutes ?? null,
+    ventana_aleatoria_minutos: data.randomWindowMinutes ?? data.random_window_minutes ?? null,
     telefono: normalizePhoneNumber(data.phoneNumber ?? data.phone_number) ?? null,
     entrada: normalizedEntry,
     salida: normalizedExit,
@@ -221,9 +203,7 @@ export const fetchAvailableTimezones = async (): Promise<string[]> => {
   }
 };
 
-export const saveAutomationRule = async (
-  payload: PersistedAutomationPayload
-) => {
+export const saveAutomationRule = async (payload: PersistedAutomationPayload) => {
   if (!API_BASE) {
     await new Promise((resolve) => setTimeout(resolve, 600));
     console.info("Guardar automatización (mock)", payload);
@@ -253,30 +233,24 @@ export interface AttendanceCredentialsMetadata {
   hasPassword: boolean;
 }
 
-export const fetchAttendanceCredentials = async (): Promise<
-  AttendanceCredentialsMetadata | null
-> => {
-  if (!API_BASE) {
-    return null;
-  }
-
-  const response = await authorizedFetch(
-    `${API_BASE}/api/v1/attendance/credentials`,
-    {
-      method: "GET",
+export const fetchAttendanceCredentials =
+  async (): Promise<AttendanceCredentialsMetadata | null> => {
+    if (!API_BASE) {
+      return null;
     }
-  );
 
-  if (response.status === 404) {
-    return null;
-  }
+    const response = await authorizedFetch(`${API_BASE}/api/v1/attendance/credentials`, {
+      method: "GET",
+    });
 
-  return await handleJson(response);
-};
+    if (response.status === 404) {
+      return null;
+    }
 
-export const saveAttendanceCredentials = async (
-  payload: AttendanceCredentialsPayload
-) => {
+    return await handleJson(response);
+  };
+
+export const saveAttendanceCredentials = async (payload: AttendanceCredentialsPayload) => {
   if (!API_BASE) {
     await new Promise((resolve) => setTimeout(resolve, 600));
     console.info("Guardar credenciales (mock)", {
@@ -286,16 +260,13 @@ export const saveAttendanceCredentials = async (
     return;
   }
 
-  const response = await authorizedFetch(
-    `${API_BASE}/api/v1/attendance/credentials`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
+  const response = await authorizedFetch(`${API_BASE}/api/v1/attendance/credentials`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 
   await handleJson(response);
 };
@@ -307,16 +278,13 @@ export const markAutomationNow = async (action: "entrada" | "salida") => {
     return;
   }
 
-  const response = await authorizedFetch(
-    `${API_BASE}/api/v1/automation/manual`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action }),
-    }
-  );
+  const response = await authorizedFetch(`${API_BASE}/api/v1/automation/manual`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ action }),
+  });
 
   await handleJson(response);
 };
