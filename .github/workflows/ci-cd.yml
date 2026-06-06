@@ -113,10 +113,25 @@ jobs:
             docker compose pull
             docker compose up -d --remove-orphans
 
-            # Health check
+            # Health check: usar docker exec para verificar Nginx dentro del container
+            # (curl localhost desde el host pega al Nginx Proxy Manager, no a nuestro container)
+            CONTAINER=$(docker compose ps -q react_app)
+            if [ -z "$CONTAINER" ]; then
+              echo "❌ Container no encontrado"
+              docker compose ps
+              exit 1
+            fi
+
+            echo "⏳ Esperando a que Nginx responda dentro del container..."
             for i in $(seq 1 30); do
-              if curl --fail --silent --max-time 3 http://localhost/; then
-                echo "✅ Health check passed"
+              if docker exec "$CONTAINER" wget -q -O - http://localhost/ > /dev/null 2>&1; then
+                echo "✅ Health check passed (wget en container $CONTAINER)"
+
+                # Verificar que el proxy /api/ está bien configurado (redirige a la API externa)
+                if docker exec "$CONTAINER" wget -q -O - http://localhost/api/ > /dev/null 2>&1 \
+                  || docker exec "$CONTAINER" wget --spider http://localhost/api/ > /dev/null 2>&1; then
+                  echo "✅ /api/ proxy reachable"
+                fi
                 exit 0
               fi
               sleep 1
@@ -124,7 +139,7 @@ jobs:
 
             echo "❌ Health check failed"
             docker ps
-            docker logs --tail 100 2>&1 || true
+            docker logs "$CONTAINER" --tail 100 2>&1 || true
             exit 1
 
   # ─── 4. Notify on failure (runs only if any prior job failed) ───────────────
