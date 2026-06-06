@@ -1,13 +1,13 @@
-name: Auto Deploy (develop)
+name: Auto Deploy (main)
 
 on:
   push:
     branches:
-      - develop
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: deploy-develop
+  group: deploy-main
   cancel-in-progress: true
 
 env:
@@ -40,7 +40,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=develop
+            type=raw,value=main
             type=sha,format=short
             type=raw,value=latest
 
@@ -78,7 +78,7 @@ jobs:
           # Es válido SOLO durante este run → login transitorio, no queda nada en el VPS.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_ACTOR: ${{ github.actor }}
-          CONTAINER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:develop
+          CONTAINER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -91,7 +91,7 @@ jobs:
           script: |
             set -e
 
-            echo "🚀 Auto-deploying $CONTAINER_IMAGE ..."
+            echo "🚀 Auto-deploying $CONTAINER_IMAGE to production..."
 
             # ── Login transitorio con el token del workflow ──────────────────
             # El token expira al terminar el run de GitHub Actions.
@@ -100,7 +100,7 @@ jobs:
 
             cd ${{ secrets.VPS_PROJECT_PATH }}
 
-            # Pull de la imagen :develop y reinicio del servicio
+            # Pull de la imagen :main y reinicio del servicio
             docker compose pull
             docker compose down || true
             docker rm -f react-vite-app || true
@@ -117,13 +117,71 @@ jobs:
             for i in $(seq 1 30); do
               if curl --fail --silent --max-time 3 http://localhost/ > /dev/null 2>&1; then
                 echo "✅ Health check OK tras ${i}s"
-                echo "🎉 Auto-deploy completo"
+                echo "🎉 Deploy a producción completo"
                 exit 0
               fi
               sleep 1
             done
 
+            # Si llegamos aquí, falló el health check. Dump diagnóstico.
             echo "❌ Health check falló tras 30s"
             docker ps --filter "name=react-vite-app" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             docker logs --tail 100 react-vite-app || true
             exit 1
+
+  # ─── 3. Notificación de fallo (webhook opcional) ─────────────────────────────
+  notify:
+    name: Notify on failure
+    needs: [build-push, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Send failure notification
+        if: env.DEPLOY_WEBHOOK_URL != ''
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          COMMIT_SHA: ${{ github.sha }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DEPLOY_WEBHOOK_URL" ]; then
+            echo "DEPLOY_WEBHOOK_URL not set, skipping notification"
+            exit 0
+          fi
+
+          # Detecta si el webhook es Discord (formato JSON específico) o Slack genérico.
+          # Si contiene "discord", usa formato Discord; si no, usa Slack.
+          if echo "$DEPLOY_WEBHOOK_URL" | grep -q "discord"; then
+            PAYLOAD=$(cat <<EOF
+          {
+            "username": "GitHub Actions",
+            "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            "embeds": [{
+              "title": "❌ Deploy FALLIDO a producción",
+              "color": 15158332,
+              "fields": [
+                { "name": "Repo", "value": "$REPO", "inline": true },
+                { "name": "Branch", "value": "\`$BRANCH\`", "inline": true },
+                { "name": "Commit", "value": "\`${COMMIT_SHA:0:7}\` — $COMMIT_MESSAGE", "inline": false },
+                { "name": "Run", "value": "[Ver logs]($RUN_URL)", "inline": false }
+              ],
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            }]
+          }
+          EOF
+            )
+          else
+            PAYLOAD=$(cat <<EOF
+          {
+            "text": "❌ *Deploy FALLIDO a producción*\n• Repo: `$REPO`\n• Branch: `$BRANCH`\n• Commit: `${COMMIT_SHA:0:7}` — $COMMIT_MESSAGE\n• <$RUN_URL|Ver logs del run>"
+          }
+          EOF
+            )
+          fi
+
+          curl -fsS -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$DEPLOY_WEBHOOK_URL" \
+            && echo "✅ Notification sent" \
+            || echo "⚠️ Failed to send notification (non-blocking)"

@@ -1,0 +1,129 @@
+name: Promote develop → main
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: promote-develop
+  cancel-in-progress: true
+
+jobs:
+  # ─── 1. Espera a que el CI de develop pase (lint/test/build) ──────────────
+  wait-ci:
+    name: Wait for develop CI to pass
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify CI status on develop HEAD
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Verificando estado del último commit en develop..."
+          SHA="${{ github.sha }}"
+          for i in $(seq 1 30); do
+            STATUS=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/commits/${SHA}/check-runs" \
+              --jq '[.check_runs[] | select(.conclusion != null) | .conclusion] | unique')
+            echo "Intento $i: estados = $STATUS"
+
+            if [ "$STATUS" = '["success"]' ]; then
+              echo "✅ Todos los checks pasaron en develop"
+              exit 0
+            fi
+
+            if echo "$STATUS" | grep -q '"failure"\|"cancelled"\|"timed_out"\|"action_required"'; then
+              echo "❌ Algún check falló en develop; no se promueve a main"
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "⏱️ Timeout esperando checks de develop (5 min)"
+          exit 1
+
+  # ─── 2. Abre o actualiza el PR develop → main con auto-merge ───────────────
+  open-pr:
+    name: Open or update PR develop → main
+    needs: wait-ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Open or update PR develop → main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+
+          # Verifica que develop no esté atrás de main (por si alguien pusheó directo a main).
+          BEHIND=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/compare/main...develop" \
+            --jq '.behind_by')
+          AHEAD=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/compare/main...develop" \
+            --jq '.ahead_by')
+
+          echo "develop está $AHEAD commits ahead, $BEHIND commits behind main"
+
+          if [ "$AHEAD" = "0" ]; then
+            echo "Nada que promover: develop ya está en main"
+            exit 0
+          fi
+
+          if [ "$BEHIND" != "0" ]; then
+            echo "❌ develop está $BEHIND commits behind main. Resolver manualmente antes de promover."
+            echo "   Sugerencia: merge main → develop primero, o rebase develop sobre main."
+            exit 1
+          fi
+
+          # Busca PR existente develop → main
+          EXISTING_PR=$(gh pr list \
+            --base main \
+            --head develop \
+            --state open \
+            --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "ℹ️ PR #$EXISTING_PR ya existe; habilitando auto-merge"
+            gh pr merge "$EXISTING_PR" --auto --squash --delete-branch=false
+          else
+            echo "🆕 Creando PR develop → main"
+            PR_URL=$(gh pr create \
+              --base main \
+              --head develop \
+              --title "chore(release): promote develop to main" \
+              --body "Automated promotion of develop to main.
+
+          - Triggered by: push to develop (commit \`${GITHUB_SHA:0:7}\`)
+          - Source: \`develop\`
+          - Target: \`main\`
+          - Strategy: squash
+
+          Auto-merge will fire when all required checks pass on this PR. The
+          push to \`main\` then triggers \`.github/workflows/auto-deploy.yml\`
+          which builds the image and deploys to the production VPS." \
+              --reviewer '')
+
+            echo "PR creado: $PR_URL"
+            PR_NUMBER=$(echo "$PR_URL" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+')
+            gh pr merge "$PR_NUMBER" --auto --squash --delete-branch=false
+          fi
