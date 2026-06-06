@@ -1,13 +1,13 @@
-name: Auto Deploy (main)
+name: Auto Deploy (master)
 
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 concurrency:
-  group: deploy-main
+  group: deploy-master
   cancel-in-progress: true
 
 env:
@@ -40,7 +40,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=main
+            type=raw,value=master
             type=sha,format=short
             type=raw,value=latest
 
@@ -78,7 +78,7 @@ jobs:
           # Es válido SOLO durante este run → login transitorio, no queda nada en el VPS.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_ACTOR: ${{ github.actor }}
-          CONTAINER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+          CONTAINER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -100,7 +100,7 @@ jobs:
 
             cd ${{ secrets.VPS_PROJECT_PATH }}
 
-            # Pull de la imagen :main y reinicio del servicio
+            # Pull de la imagen :master y reinicio del servicio
             docker compose pull
             docker compose down || true
             docker rm -f react-vite-app || true
