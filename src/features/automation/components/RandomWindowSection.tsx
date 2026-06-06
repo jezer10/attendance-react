@@ -11,11 +11,16 @@ const RandomWindowSection = ({
   value,
   onChange,
 }: RandomWindowSectionProps) => {
+  const groupId = "random-window-section";
+  const customInputId = `${groupId}-custom`;
   return (
-    <div className="space-y-3">
-      <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">
+    <div className="space-y-3" role="group" aria-labelledby={`${groupId}-label`}>
+      <span
+        id={`${groupId}-label`}
+        className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1"
+      >
         Minutos de tolerancia
-      </label>
+      </span>
       <div className="flex flex-wrap gap-2">
         <div className="flex overflow-hidden rounded-full border border-black/5 w-fit bg-white/40">
           {PRESETS.map((preset) => (
@@ -23,6 +28,8 @@ const RandomWindowSection = ({
               key={preset}
               type="button"
               onClick={() => onChange(preset)}
+              aria-pressed={value === preset}
+              aria-label={`${preset} minutos de tolerancia`}
               className={`px-4 py-2 text-[10px] font-medium uppercase tracking-wider transition-all border-r last:border-r-0 border-black/5 ${
                 value === preset
                   ? "bg-black text-white cursor-pointer"
@@ -33,14 +40,16 @@ const RandomWindowSection = ({
             </button>
           ))}
         </div>
-        
+
         {/* Manual Input for other values */}
         <div className="flex items-center gap-2">
           {!PRESETS.includes(value ?? -1) && value !== null && (
             <input
+              id={customInputId}
               type="number"
               value={value}
               onChange={(e) => onChange(Number(e.target.value))}
+              aria-label="Minutos de tolerancia personalizados"
               className="w-16 bg-white/40 border border-black/5 rounded-full px-3 py-1.5 text-[10px] font-medium focus:ring-1 focus:ring-black outline-none"
             />
           )}

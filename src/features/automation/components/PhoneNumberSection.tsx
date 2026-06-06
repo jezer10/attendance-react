@@ -64,9 +64,10 @@ const PhoneNumberSection = ({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">País</label>
+            <label htmlFor="phone-country" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">País</label>
             <div className="relative">
               <select
+                id="phone-country"
                 value={selectedCountry}
                 onChange={(e) => onCountryChange(e.target.value as CountryCode)}
                 className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black appearance-none cursor-pointer font-light"
@@ -77,13 +78,14 @@ const PhoneNumberSection = ({
                   </option>
                 ))}
               </select>
-              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 pointer-events-none text-base">expand_more</span>
+              <span aria-hidden="true" className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 pointer-events-none text-base">expand_more</span>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Número de Teléfono</label>
+            <label htmlFor="phone-number" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Número de Teléfono</label>
             <input
+              id="phone-number"
               type="text"
               inputMode="numeric"
               value={formattedPhoneNumber}

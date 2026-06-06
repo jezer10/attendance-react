@@ -72,13 +72,14 @@ const LocationSection = ({
 
       <div className="space-y-4">
         <div className="space-y-1">
-          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Referencia / Dirección</label>
-          <input 
+          <label htmlFor="location-address" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Referencia / Dirección</label>
+          <input
+            id="location-address"
             type="text"
             value={address}
             onChange={(e) => onLocationChange({ address: e.target.value, lat, lng, radius })}
-            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light" 
-            placeholder="Ej. Oficina Central" 
+            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light"
+            placeholder="Ej. Oficina Central"
           />
         </div>
 
@@ -94,30 +95,31 @@ const LocationSection = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <dl className="grid grid-cols-2 gap-4">
         <div className="p-4 bg-white/40 rounded-token border border-black/5">
-          <label className="text-[8px] text-black/40 uppercase tracking-[0.2em] block mb-1 font-display font-light">Latitud</label>
-          <span className="font-mono text-xs text-black font-light">{lat?.toFixed(6) ?? "---"}</span>
+          <dt className="text-[8px] text-black/40 uppercase tracking-[0.2em] block mb-1 font-display font-light">Latitud</dt>
+          <dd className="font-mono text-xs text-black font-light">{lat?.toFixed(6) ?? "---"}</dd>
         </div>
         <div className="p-4 bg-white/40 rounded-token border border-black/5">
-          <label className="text-[8px] text-black/40 uppercase tracking-[0.2em] block mb-1 font-display font-light">Longitud</label>
-          <span className="font-mono text-xs text-black font-light">{lng?.toFixed(6) ?? "---"}</span>
+          <dt className="text-[8px] text-black/40 uppercase tracking-[0.2em] block mb-1 font-display font-light">Longitud</dt>
+          <dd className="font-mono text-xs text-black font-light">{lng?.toFixed(6) ?? "---"}</dd>
         </div>
-      </div>
+      </dl>
 
       <div className="space-y-3 p-5 bg-black/5 rounded-token">
         <div className="flex justify-between text-[9px] font-black text-black uppercase tracking-[0.2em] font-display">
-          <span className="font-light">Radio de marcación</span>
-          <span className="text-black font-mono font-light">{radius}m</span>
+          <label htmlFor="location-radius" className="font-light">Radio de marcación</label>
+          <span className="text-black font-mono font-light" aria-hidden="true">{radius}m</span>
         </div>
-        <input 
+        <input
+          id="location-radius"
           type="range"
           min="50"
           max="1000"
           step="50"
           value={radius ?? 100}
           onChange={(e) => onLocationChange({ address, lat, lng, radius: Number(e.target.value) })}
-          className="w-full h-1 bg-black/10 rounded-full appearance-none cursor-pointer accent-black transition-all" 
+          className="w-full h-1 bg-black/10 rounded-full appearance-none cursor-pointer accent-black transition-all"
         />
       </div>
     </section>

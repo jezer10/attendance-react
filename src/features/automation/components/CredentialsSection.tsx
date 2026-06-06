@@ -55,43 +55,49 @@ const CredentialsSection = ({
       
       <div className="space-y-5">
         <div className="space-y-2">
-          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Empresa</label>
-          <input 
+          <label htmlFor="credentials-company-id" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Empresa</label>
+          <input
+            id="credentials-company-id"
             type="number"
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value)}
-            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light" 
-            placeholder="ALPHA-ID" 
+            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light"
+            placeholder="ALPHA-ID"
           />
         </div>
-        
+
         <div className="space-y-2">
-          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Usuario</label>
-          <input 
+          <label htmlFor="credentials-user-id" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">ID Usuario</label>
+          <input
+            id="credentials-user-id"
             type="number"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light" 
-            placeholder="USER-ID" 
+            className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black placeholder:text-black/20 font-light"
+            placeholder="USER-ID"
           />
         </div>
-        
+
         <div className="space-y-2">
-          <label className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Contraseña</label>
+          <label htmlFor="credentials-password" className="text-[8px] text-black/40 uppercase tracking-[0.25em] ml-1 font-display font-light">Contraseña</label>
           <div className="relative">
-            <input 
+            <input
+              id="credentials-password"
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black font-light" 
+              className="w-full bg-white/60 border border-black/5 rounded-token px-6 py-3 focus:ring-2 focus:ring-black outline-none text-sm text-black font-light"
               placeholder="••••••••"
             />
-            <span 
+            <button
+              type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-pressed={showPassword}
               className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-black/40 hover:text-black cursor-pointer text-base font-light select-none"
             >
               {showPassword ? "visibility_off" : "visibility"}
-            </span>
+            </button>
           </div>
         </div>
 

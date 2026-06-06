@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { useAuth, getStoredTokens } from "../features/auth";
 
@@ -137,9 +137,12 @@ const LoginPage = () => {
                 <p className="mt-2 text-xs text-error">{errors.password.message}</p>
               )}
               <div className="mt-4 text-right">
-                <a className="text-xs text-on-surface-variant hover:text-on-surface transition-colors duration-200 underline decoration-1 underline-offset-4 decoration-outline-variant/40" href="#">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-on-surface-variant hover:text-on-surface transition-colors duration-200 underline decoration-1 underline-offset-4 decoration-outline-variant/40"
+                >
                   Olvidé mi contraseña
-                </a>
+                </Link>
               </div>
             </div>
 

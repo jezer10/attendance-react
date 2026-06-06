@@ -291,12 +291,13 @@ const AutomationScheduler = ({
         {/* Timezone Section */}
         <div className="glass-panel p-6 rounded-token flex flex-col md:flex-row items-center gap-8 transition-all border border-black/5">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center">
+            <div className="w-10 h-10 bg-black/5 rounded-full flex items-center justify-center" aria-hidden="true">
               <span className="material-symbols-outlined text-black font-light">public</span>
             </div>
-            <span className="text-black uppercase tracking-widest text-xs font-light">Ubicación horaria:</span>
+            <label htmlFor="timezone-select" className="text-black uppercase tracking-widest text-xs font-light">Ubicación horaria:</label>
           </div>
-          <select 
+          <select
+            id="timezone-select"
             value={timezone}
             onChange={(e) => setValue("timezone", e.target.value, { shouldValidate: true })}
             className="bg-white/40 border border-black/5 rounded-token px-6 py-3 flex-grow focus:ring-2 focus:ring-black appearance-none font-body text-black cursor-pointer font-light outline-none"
@@ -325,12 +326,13 @@ const AutomationScheduler = ({
               </Field>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                 <div className="space-y-3">
-                  <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">Hora para entrar</label>
-                  <input 
+                  <label htmlFor="entry-time" className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">Hora para entrar</label>
+                  <input
+                    id="entry-time"
                     type="time"
                     value={entry.hora_local}
                     onChange={(e) => setValue("entry.hora_local", e.target.value, { shouldValidate: true })}
-                    className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none" 
+                    className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none"
                   />
                 </div>
                 {/* Random Window Section integration here if needed, or separate */}
@@ -341,8 +343,8 @@ const AutomationScheduler = ({
                   />
                 </div>
               </div>
-              <div className="space-y-4 pt-4 border-t border-black/5">
-                <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">Días de trabajo</label>
+              <div className="space-y-4 pt-4 border-t border-black/5" role="group" aria-labelledby="entry-days-label">
+                <span id="entry-days-label" className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">Días de trabajo</span>
                 <div className="flex flex-wrap gap-3">
                   {DAYS.map((day) => {
                     const isSelected = entry.dias.includes(day);
@@ -350,10 +352,12 @@ const AutomationScheduler = ({
                       <button
                         key={day}
                         type="button"
+                        aria-pressed={isSelected}
+                        aria-label={`${day} (entrada)`}
                         onClick={() => setValue("entry.dias", toggleDay(entry.dias, day), { shouldValidate: true })}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-xs font-display font-light cursor-pointer ${
-                          isSelected 
-                            ? "bg-black text-white" 
+                          isSelected
+                            ? "bg-black text-white"
                             : "bg-transparent text-black/30 border border-black/10 hover:border-black/30"
                         }`}
                       >
@@ -381,17 +385,18 @@ const AutomationScheduler = ({
               </Field>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                 <div className="space-y-3">
-                  <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">Hora para salir</label>
-                  <input 
-                    type="time" 
+                  <label htmlFor="exit-time" className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light ml-1">Hora para salir</label>
+                  <input
+                    id="exit-time"
+                    type="time"
                     value={exit.hora_local}
                     onChange={(e) => setValue("exit.hora_local", e.target.value, { shouldValidate: true })}
-                    className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none" 
+                    className="w-full bg-black/5 border-none rounded-token font-display focus:ring-2 focus:ring-black text-black font-light text-2xl py-6 px-8 outline-none"
                   />
                 </div>
               </div>
-              <div className="space-y-4 pt-4 border-t border-black/5">
-                <label className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">Días de trabajo</label>
+              <div className="space-y-4 pt-4 border-t border-black/5" role="group" aria-labelledby="exit-days-label">
+                <span id="exit-days-label" className="block text-[10px] text-black/40 uppercase tracking-[0.2em] font-display font-light">Días de trabajo</span>
                 <div className="flex flex-wrap gap-3">
                   {DAYS.map((day) => {
                     const isSelected = exit.dias.includes(day);
@@ -399,10 +404,12 @@ const AutomationScheduler = ({
                       <button
                         key={day}
                         type="button"
+                        aria-pressed={isSelected}
+                        aria-label={`${day} (salida)`}
                         onClick={() => setValue("exit.dias", toggleDay(exit.dias, day), { shouldValidate: true })}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all text-xs font-display font-light cursor-pointer ${
-                          isSelected 
-                            ? "bg-black text-white" 
+                          isSelected
+                            ? "bg-black text-white"
                             : "bg-transparent text-black/30 border border-black/10 hover:border-black/30"
                         }`}
                       >

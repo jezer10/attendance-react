@@ -26,6 +26,13 @@ const router = createBrowserRouter([
           return { Component };
         },
       },
+      {
+        path: "forgot-password",
+        lazy: async () => {
+          const { default: Component } = await import("./pages/ForgotPasswordPage");
+          return { Component };
+        },
+      },
     ],
   },
 ]);
