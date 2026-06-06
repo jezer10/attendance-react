@@ -1,2 +1,8 @@
 allowBuilds:
   esbuild: true
+minimumReleaseAge: 10080
+trustPolicy: no-downgrade
+trustPolicyExclude:
+  - semver@6.3.1
+  - ast-v8-to-istanbul@1.0.2
+  - "@effect/platform-node-shared@4.0.0-beta.70"

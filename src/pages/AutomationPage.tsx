@@ -8,7 +8,7 @@ import {
   useManualActionToken,
   useSaveAttendanceCredentials,
   useAttendanceCredentials,
-} from "../features/automation";
+} from "../features/automation/hooks/useAutomation";
 import { AuthorizationError } from "../features/auth/services/authService";
 import AutomationScheduler from "../features/automation/components/AutomationScheduler";
 import AutomationSkeleton from "../features/automation/components/AutomationSkeleton";
@@ -17,20 +17,16 @@ const EMPTY_ARRAY: string[] = [];
 
 const AutomationPage = () => {
   const navigate = useNavigate();
-  const { 
-    data: rule, 
-    isLoading: isLoadingRule, 
-    error: errorRule 
-  } = useAutomationRule();
-  const { 
-    data: timezones, 
-    isLoading: isLoadingTimezones, 
-    error: errorTimezones 
+  const { data: rule, isLoading: isLoadingRule, error: errorRule } = useAutomationRule();
+  const {
+    data: timezones,
+    isLoading: isLoadingTimezones,
+    error: errorTimezones,
   } = useAvailableTimezones();
-  const { 
-    data: credentials, 
-    isLoading: isLoadingCredentials, 
-    error: errorCredentials 
+  const {
+    data: credentials,
+    isLoading: isLoadingCredentials,
+    error: errorCredentials,
   } = useAttendanceCredentials();
 
   const { mutateAsync: saveRule } = useSaveAutomation();
@@ -38,9 +34,9 @@ const AutomationPage = () => {
   const { mutateAsync: saveCredentials } = useSaveAttendanceCredentials();
 
   useEffect(() => {
-    const hasAuthError = 
-      errorRule instanceof AuthorizationError || 
-      errorTimezones instanceof AuthorizationError || 
+    const hasAuthError =
+      errorRule instanceof AuthorizationError ||
+      errorTimezones instanceof AuthorizationError ||
       errorCredentials instanceof AuthorizationError;
 
     if (hasAuthError) {

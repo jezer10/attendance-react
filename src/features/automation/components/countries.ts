@@ -18,25 +18,26 @@ export interface PhoneCountry {
  */
 export const getAllCountries = (): PhoneCountry[] => {
   const regions = getCountries();
-  return regions
-    .map((region) => {
-      // Priority: Official Spanish name -> English name -> Region Code
-      const label =
-        countries.getName(region, "es", { select: "official" }) ||
-        countries.getName(region, "en") ||
-        region;
-      
-      let dialCode = "";
-      try {
-        dialCode = String(getCountryCallingCode(region));
-      } catch {
-        dialCode = "";
-      }
-      
-      return { id: region, label, dialCode };
-    })
-    .filter((country) => country.dialCode)
-    .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  const result: PhoneCountry[] = [];
+  for (const region of regions) {
+    // Priority: Official Spanish name -> English name -> Region Code
+    const label =
+      countries.getName(region, "es", { select: "official" }) ||
+      countries.getName(region, "en") ||
+      region;
+
+    let dialCode = "";
+    try {
+      dialCode = String(getCountryCallingCode(region));
+    } catch {
+      dialCode = "";
+    }
+
+    if (!dialCode) continue;
+    result.push({ id: region, label, dialCode });
+  }
+  result.sort((a, b) => a.label.localeCompare(b.label, "es"));
+  return result;
 };
 
 /**

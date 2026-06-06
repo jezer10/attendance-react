@@ -12,8 +12,10 @@ const router = createBrowserRouter([
       {
         index: true,
         lazy: async () => {
-          const { default: Component } = await import("./pages/AutomationPage");
-          const { automationLoader: loader } = await import("./routes/automation");
+          const [{ default: Component }, { automationLoader: loader }] = await Promise.all([
+            import("./pages/AutomationPage"),
+            import("./routes/automation"),
+          ]);
           return { Component, loader };
         },
       },
@@ -21,6 +23,13 @@ const router = createBrowserRouter([
         path: "login",
         lazy: async () => {
           const { default: Component } = await import("./pages/LoginPage");
+          return { Component };
+        },
+      },
+      {
+        path: "forgot-password",
+        lazy: async () => {
+          const { default: Component } = await import("./pages/ForgotPasswordPage");
           return { Component };
         },
       },

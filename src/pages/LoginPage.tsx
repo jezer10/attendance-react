@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 
-import { useAuth, getStoredTokens } from "../features/auth";
+import { useAuth } from "../features/auth/hooks/useAuth";
+import { getStoredTokens } from "../features/auth/services/authService";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,14 +38,17 @@ const LoginPage = () => {
   }, [navigate]);
 
   const onSubmit: SubmitHandler<LoginFormValues> = async (values) => {
-    login({
-      email: values.email.trim().toLowerCase(),
-      password: values.password,
-    }, {
-      onSuccess: () => {
-        reset();
+    login(
+      {
+        email: values.email.trim().toLowerCase(),
+        password: values.password,
+      },
+      {
+        onSuccess: () => {
+          reset();
+        },
       }
-    });
+    );
   };
 
   return (
@@ -59,7 +63,9 @@ const LoginPage = () => {
 
       {/* Navigation */}
       <header className="fixed top-0 w-full z-50 flex justify-center items-center px-12 py-12 md:py-16">
-        <h1 className="text-3xl font-display font-semibold tracking-tighter text-on-surface cursor-pointer">Mark</h1>
+        <h1 className="text-3xl font-display font-semibold tracking-tighter text-on-surface cursor-pointer">
+          Mark
+        </h1>
       </header>
 
       <main className="min-h-screen flex items-center justify-center px-6 pt-24 pb-32">
@@ -79,13 +85,13 @@ const LoginPage = () => {
           <form className="space-y-8" onSubmit={handleSubmit(onSubmit)}>
             {/* Email Field */}
             <div className="group">
-              <label 
-                className="block text-[10px] font-medium uppercase tracking-[0.2em] text-on-surface-variant mb-2 ml-1" 
+              <label
+                className="block text-[10px] font-medium uppercase tracking-[0.2em] text-on-surface-variant mb-2 ml-1"
                 htmlFor="email"
               >
                 CORREO ELECTRÓNICO
               </label>
-              <input 
+              <input
                 id="email"
                 type="email"
                 placeholder="ejemplo@milagros.com"
@@ -98,16 +104,14 @@ const LoginPage = () => {
                 })}
                 className="w-full bg-white/10 backdrop-blur-[20px] border-b border-outline-variant/30 focus:border-primary focus:ring-0 outline-none transition-all duration-300 py-3 px-4 rounded-t-md text-on-surface placeholder:text-outline-variant/60 font-body text-sm"
               />
-              {errors.email && (
-                <p className="mt-2 text-xs text-error">{errors.email.message}</p>
-              )}
+              {errors.email && <p className="mt-2 text-xs text-error">{errors.email.message}</p>}
             </div>
 
             {/* Password Field */}
             <div className="group">
               <div className="flex justify-between items-center mb-2 ml-1">
-                <label 
-                  className="block text-[10px] font-medium uppercase tracking-[0.2em] text-on-surface-variant" 
+                <label
+                  className="block text-[10px] font-medium uppercase tracking-[0.2em] text-on-surface-variant"
                   htmlFor="password"
                 >
                   CONTRASEÑA
@@ -120,7 +124,7 @@ const LoginPage = () => {
                   {showPassword ? "OCULTAR" : "MOSTRAR"}
                 </button>
               </div>
-              <input 
+              <input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
@@ -137,9 +141,12 @@ const LoginPage = () => {
                 <p className="mt-2 text-xs text-error">{errors.password.message}</p>
               )}
               <div className="mt-4 text-right">
-                <a className="text-xs text-on-surface-variant hover:text-on-surface transition-colors duration-200 underline decoration-1 underline-offset-4 decoration-outline-variant/40" href="#">
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-on-surface-variant hover:text-on-surface transition-colors duration-200 underline decoration-1 underline-offset-4 decoration-outline-variant/40"
+                >
                   Olvidé mi contraseña
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -150,8 +157,8 @@ const LoginPage = () => {
             )}
 
             {/* Primary Action */}
-            <button 
-              className="w-full bg-primary hover:bg-zinc-800 disabled:bg-zinc-400 text-on-primary font-display font-medium py-4 px-6 rounded-lg transition-all duration-300 flex justify-center items-center group border border-white/10 active:scale-[0.98] cursor-pointer" 
+            <button
+              className="w-full bg-primary hover:bg-zinc-800 disabled:bg-zinc-400 text-on-primary font-display font-medium py-4 px-6 rounded-lg transition-all duration-300 flex justify-center items-center group border border-white/10 active:scale-[0.98] cursor-pointer"
               type="submit"
               disabled={!isValid || isLoggingIn}
             >

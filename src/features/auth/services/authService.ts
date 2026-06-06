@@ -43,12 +43,11 @@ const persistTokens = (tokens: AuthTokens) => {
   localStorage.removeItem(LEGACY_KEY);
 };
 
-export const clearTokens = () => {
+const clearTokens = () => {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   localStorage.removeItem(LEGACY_KEY);
 };
-
 
 export const getStoredTokens = (): AuthTokens | null => {
   const accessToken = localStorage.getItem(ACCESS_KEY);
@@ -126,9 +125,7 @@ export const authenticate = async (email: string, password: string) => {
   }
 };
 
-export const refreshSession = async (
-  refreshToken?: string
-): Promise<AuthTokens | null> => {
+const refreshSession = async (refreshToken?: string): Promise<AuthTokens | null> => {
   const current = getStoredTokens();
   const token = refreshToken ?? current?.refreshToken;
 
@@ -159,7 +156,7 @@ export const refreshSession = async (
   }
 };
 
-export const ensureAuthTokens = async (): Promise<AuthTokens> => {
+const ensureAuthTokens = async (): Promise<AuthTokens> => {
   const tokens = getStoredTokens();
 
   if (!tokens) {
@@ -191,7 +188,7 @@ export class AuthorizationError extends Error {
   }
 }
 
-export class NetworkError extends Error {
+class NetworkError extends Error {
   constructor(message = "No se pudo conectar con el servidor. Verifica tu conexión a internet.") {
     super(message);
     this.name = "NetworkError";
@@ -219,10 +216,7 @@ export const authorizedFetch = async (
   }
 
   const headers = new Headers(init.headers);
-  headers.set(
-    "Authorization",
-    `${tokens.tokenType ?? "Bearer"} ${tokens.accessToken}`
-  );
+  headers.set("Authorization", `${tokens.tokenType ?? "Bearer"} ${tokens.accessToken}`);
 
   const response = await fetch(input, { ...init, headers });
 
@@ -237,10 +231,7 @@ export const authorizedFetch = async (
   }
 
   const retryHeaders = new Headers(init.headers);
-  retryHeaders.set(
-    "Authorization",
-    `${refreshed.tokenType ?? "Bearer"} ${refreshed.accessToken}`
-  );
+  retryHeaders.set("Authorization", `${refreshed.tokenType ?? "Bearer"} ${refreshed.accessToken}`);
 
   return fetch(input, { ...init, headers: retryHeaders });
 };

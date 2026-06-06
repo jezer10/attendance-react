@@ -1,5 +1,4 @@
-export const isValidTime = (value: string) =>
-  /^([01]\d|2[0-3]):([0-5]\d)$/.test(value.trim());
+const isValidTime = (value: string) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(value.trim());
 
 export const extractOffsetMinutes = (timezone?: string) => {
   if (!timezone) return 0;
@@ -24,8 +23,5 @@ export const toUtcTime = (time: string, offsetMinutes: number) => {
   const utcHour = Math.floor(normalized / 60);
   const utcMinute = normalized % 60;
 
-  return `${utcHour.toString().padStart(2, "0")}:${utcMinute
-    .toString()
-    .padStart(2, "0")}`;
+  return `${utcHour.toString().padStart(2, "0")}:${utcMinute.toString().padStart(2, "0")}`;
 };
-
