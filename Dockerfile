@@ -5,6 +5,12 @@ WORKDIR /app
 # Habilita pnpm vía corepack
 RUN corepack enable
 
+# VITE_API_URL se inyecta como build-arg desde el workflow de CI/CD.
+# Queda embebido en el bundle de JS por Vite al momento de compilar.
+# Default: vacío → el frontend usa URLs relativas (/api/v1/...).
+ARG VITE_API_URL=
+ENV VITE_API_URL=$VITE_API_URL
+
 # Copia manifests primero (para aprovechar cache)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
@@ -16,11 +22,7 @@ COPY . .
 RUN pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
 
 # Serve
-# nginx:alpine ejecuta `envsubst` automáticamente sobre archivos en
-# /etc/nginx/templates/*.template, copiando el resultado a /etc/nginx/conf.d/.
-# API_BACKEND_URL se inyecta como variable de entorno del container.
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/templates/default.conf.template
-ENV API_BACKEND_URL=
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

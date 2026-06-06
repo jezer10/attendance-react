@@ -87,6 +87,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: VITE_API_URL=https://api.attendance.jzr.my
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -113,13 +114,11 @@ jobs:
 
             # Pull new image and recreate container
             export CONTAINER_IMAGE="ghcr.io/${{ github.repository }}:master"
-            export API_BACKEND_URL="${{ secrets.API_BACKEND_URL }}"
             docker compose pull
             docker compose up -d --remove-orphans
 
             # Health check: curl al puerto publicado del container (random port mapeado a 80)
-            # No podemos usar 'docker exec wget' porque nginx:alpine no incluye wget/curl.
-            # Y 'curl localhost' desde el host pega al Nginx Proxy Manager, no a nosotros.
+            # 'curl localhost' desde el host pega al Nginx Proxy Manager, no a nuestro container.
             CONTAINER=$(docker compose ps -q react_app)
             if [ -z "$CONTAINER" ]; then
               echo "❌ Container no encontrado"
@@ -127,7 +126,7 @@ jobs:
               exit 1
             fi
 
-            # docker compose port <svc> <container_port> → "0.0.0.0:59288"
+            # docker compose port <svc> <container_port> → "0.0.0.0:<random>"
             HOST_PORT=$(docker compose port react_app 80 2>/dev/null | cut -d: -f2)
             if [ -z "$HOST_PORT" ]; then
               echo "❌ No se pudo obtener el puerto publicado del container"
@@ -140,15 +139,6 @@ jobs:
             for i in $(seq 1 30); do
               if curl --fail --silent --max-time 3 "http://localhost:$HOST_PORT/" > /dev/null 2>&1; then
                 echo "✅ Health check passed"
-
-                # Verificar proxy /api/ → api.attendance.jzr.my
-                API_STATUS=$(curl --silent --max-time 5 -o /dev/null -w "%{http_code}" \
-                  "http://localhost:$HOST_PORT/api/v1/auth/login")
-                if [ "$API_STATUS" != "502" ] && [ "$API_STATUS" != "504" ] && [ "$API_STATUS" != "000" ]; then
-                  echo "✅ /api/ proxy reachable (status: $API_STATUS)"
-                else
-                  echo "⚠️  /api/ proxy returned $API_STATUS (backend might be down or path differs)"
-                fi
                 exit 0
               fi
               sleep 1
