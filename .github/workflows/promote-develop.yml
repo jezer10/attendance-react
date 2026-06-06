@@ -69,6 +69,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      merged_sha: ${{ steps.wait-merge.outputs.merged_sha }}
 
     steps:
       - name: Checkout develop
@@ -114,7 +116,8 @@ jobs:
           if [ "$BEHIND" != "0" ]; then
             echo "⚠️  develop está $BEHIND commit(s) behind master. Mergeando master en develop..."
             git fetch origin master
-            if ! git merge --no-ff origin/master -m "chore: sync develop with master [skip ci]"; then
+            # El merge commit NO usa [skip ci] para que CI corra sobre el sync.
+            if ! git merge --no-ff origin/master -m "chore: sync develop with master"; then
               echo "❌ Merge produjo conflictos. Resolver manualmente."
               exit 1
             fi
@@ -123,6 +126,7 @@ jobs:
           fi
 
       - name: Open or update PR develop → master
+        id: wait-merge
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -173,12 +177,46 @@ jobs:
           - Target: \`master\`
           - Strategy: merge commit (preserves ancestry for next sync)
 
-          Auto-merge will fire when all required checks pass on this PR. The
-          push to \`master\` then triggers \`.github/workflows/auto-deploy.yml\`
-          which builds the image and deploys to the production VPS." \
+          Auto-merge will fire when all required checks pass on this PR.
+          After merge, \`.github/workflows/auto-deploy.yml\` is invoked via
+          \`workflow_call\` to build and deploy to the production VPS." \
               --reviewer '')
 
             echo "PR creado: $PR_URL"
             PR_NUMBER=$(echo "$PR_URL" | grep -oE '/pull/[0-9]+' | grep -oE '[0-9]+')
             gh pr merge "$PR_NUMBER" --auto --merge --delete-branch=false
           fi
+
+          # Espera activa a que el PR se mergee para conocer el SHA final de master
+          # (el merge_commit_sha). El auto-merge ocurre tras pasar los required checks
+          # de master, no de develop, así que esperamos aquí.
+          echo "⏳ Esperando a que el PR se mergee a master..."
+          for i in $(seq 1 60); do
+            MERGED_SHA=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
+              --jq '.merge_commit_sha // empty')
+            if [ -n "$MERGED_SHA" ] && [ "$MERGED_SHA" != "null" ]; then
+              echo "✅ PR mergeado en $MERGED_SHA"
+              break
+            fi
+            sleep 5
+          done
+
+          if [ -z "$MERGED_SHA" ] || [ "$MERGED_SHA" = "null" ]; then
+            echo "⏱️ Timeout esperando merge del PR; el deploy no se disparará automáticamente"
+            exit 0
+          fi
+
+          # Set output para que el job de deploy lo use
+          echo "merged_sha=$MERGED_SHA" >> "$GITHUB_OUTPUT"
+
+  # ─── 3. Dispara auto-deploy una vez que el PR está mergeado a master ────────
+  deploy:
+    name: Deploy to production
+    needs: open-pr
+    if: needs.open-pr.outputs.merged_sha != ''
+    uses: ./.github/workflows/auto-deploy.yml
+    with:
+      commit_sha: ${{ needs.open-pr.outputs.merged_sha }}
+    secrets: inherit

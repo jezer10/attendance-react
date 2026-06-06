@@ -1,15 +1,20 @@
 name: Auto Deploy (master)
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    types:
-      - closed
-    branches:
-      - master
+  workflow_call:
+    inputs:
+      commit_sha:
+        description: "Commit SHA a desplegar (defaults to github.sha si vacío)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA a desplegar (vacío = último de la rama actual)"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: deploy-master
@@ -20,33 +25,9 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ─── 0. Gate: si el trigger es pull_request:closed, abortar si NO fue merge ─
-  merged-guard:
-    name: Verify PR was merged
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    outputs:
-      merged: ${{ steps.gate.outputs.merged }}
-    steps:
-      - name: Check pull_request.merged
-        id: gate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
-            echo "merged=true" >> "$GITHUB_OUTPUT"
-            echo "✅ PR fue mergeado a master"
-          else
-            echo "merged=false" >> "$GITHUB_OUTPUT"
-            echo "ℹ️ PR cerrado sin merge; saliendo"
-            exit 0
-          fi
-
   # ─── 1. Build y push de imagen Docker a GitHub Container Registry ───────────
   build-push:
     name: Build & Push Docker image
-    needs: merged-guard
-    if: github.event_name != 'pull_request' || needs.merged-guard.outputs.merged == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -58,11 +39,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Para `push` usamos github.sha directo.
-          # Para `pull_request:closed` merged, github.sha es el SHA del head ref,
-          # pero queremos el merge_commit_sha (que es el commit real de master).
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          SHA_INPUT="${{ inputs.commit_sha }}"
+          if [ -n "$SHA_INPUT" ]; then
+            SHA="$SHA_INPUT"
           else
             SHA="${{ github.sha }}"
           fi
@@ -113,7 +92,6 @@ jobs:
     name: Deploy to VPS
     needs: build-push
     runs-on: ubuntu-latest
-    # packages:read permite que GITHUB_TOKEN autentique docker pull en el VPS
     permissions:
       packages: read
 
@@ -121,45 +99,34 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         env:
-          # El GITHUB_TOKEN del workflow se pasa al script remoto como variable de entorno.
-          # Es válido SOLO durante este run → login transitorio, no queda nada en el VPS.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_ACTOR: ${{ github.actor }}
           CONTAINER_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          # Prioriza SSH key; si está vacío cae en password automáticamente
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
           port: ${{ secrets.VPS_PORT || 22 }}
-          # Exporta las env vars definidas arriba al shell remoto
           envs: GH_TOKEN,GH_ACTOR,CONTAINER_IMAGE
           script: |
             set -e
 
             echo "🚀 Auto-deploying $CONTAINER_IMAGE to production..."
 
-            # ── Login transitorio con el token del workflow ──────────────────
-            # El token expira al terminar el run de GitHub Actions.
-            # Hacemos logout explícito al final para no dejar config en el VPS.
             echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
 
             cd ${{ secrets.VPS_PROJECT_PATH }}
 
-            # Pull de la imagen :master y reinicio del servicio
             docker compose pull
             docker compose down || true
             docker rm -f react-vite-app || true
             docker compose up -d --remove-orphans
 
-            # ── Logout inmediato — sin credenciales almacenadas ──────────────
             docker logout ghcr.io
 
-            # Limpia capas de imágenes antiguas
             docker image prune -f
 
-            # ── Health check: espera a que el contenedor responda ────────────
             echo "⏳ Esperando health check en http://localhost..."
             for i in $(seq 1 30); do
               if curl --fail --silent --max-time 3 http://localhost/ > /dev/null 2>&1; then
@@ -170,7 +137,6 @@ jobs:
               sleep 1
             done
 
-            # Si llegamos aquí, falló el health check. Dump diagnóstico.
             echo "❌ Health check falló tras 30s"
             docker ps --filter "name=react-vite-app" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
             docker logs --tail 100 react-vite-app || true
@@ -184,30 +150,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Resolve commit message for notification
-        id: meta-notify
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            SHA="${{ github.event.pull_request.merge_commit_sha }}"
-            MSG="${{ github.event.pull_request.title }}"
-          else
-            SHA="${{ github.sha }}"
-            MSG="${{ github.event.head_commit.message }}"
-          fi
-          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
-          echo "msg<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$MSG" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
       - name: Send failure notification
         if: env.DEPLOY_WEBHOOK_URL != ''
         env:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          COMMIT_SHA: ${{ steps.meta-notify.outputs.sha }}
-          COMMIT_MESSAGE: ${{ steps.meta-notify.outputs.msg }}
-          BRANCH: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ inputs.commit_sha || github.sha }}
+          BRANCH: master
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -216,8 +164,6 @@ jobs:
             exit 0
           fi
 
-          # Detecta si el webhook es Discord (formato JSON específico) o Slack genérico.
-          # Si contiene "discord", usa formato Discord; si no, usa Slack.
           if echo "$DEPLOY_WEBHOOK_URL" | grep -q "discord"; then
             PAYLOAD=$(cat <<EOF
           {
@@ -229,7 +175,7 @@ jobs:
               "fields": [
                 { "name": "Repo", "value": "$REPO", "inline": true },
                 { "name": "Branch", "value": "\`$BRANCH\`", "inline": true },
-                { "name": "Commit", "value": "\`${COMMIT_SHA:0:7}\` — $COMMIT_MESSAGE", "inline": false },
+                { "name": "Commit", "value": "\`${COMMIT_SHA:0:7}\`", "inline": false },
                 { "name": "Run", "value": "[Ver logs]($RUN_URL)", "inline": false }
               ],
               "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -240,7 +186,7 @@ jobs:
           else
             PAYLOAD=$(cat <<EOF
           {
-            "text": "❌ *Deploy FALLIDO a producción*\n• Repo: `$REPO`\n• Branch: `$BRANCH`\n• Commit: `${COMMIT_SHA:0:7}` — $COMMIT_MESSAGE\n• <$RUN_URL|Ver logs del run>"
+            "text": "❌ *Deploy FALLIDO a producción*\n• Repo: `$REPO`\n• Branch: `$BRANCH`\n• Commit: `${COMMIT_SHA:0:7}`\n• <$RUN_URL|Ver logs del run>"
           }
           EOF
             )
