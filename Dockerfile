@@ -11,9 +11,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # Instala dependencias (usa lockfile)
 RUN pnpm install --frozen-lockfile
 
-# Copia el resto y compila
+# Copia el resto y valida antes de buildear
 COPY . .
-RUN pnpm build
+RUN pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
 
 # Serve
 FROM nginx:alpine
