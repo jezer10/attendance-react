@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 
 interface AttendanceCredentialsMetadata {
   companyId: number;
@@ -17,6 +17,11 @@ const CredentialsSection = ({ initialCredentials, onSave, isSaving }: Credential
   const [userId, setUserId] = useState(initialCredentials?.userId?.toString() ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    setCompanyId(initialCredentials?.companyId?.toString() ?? "");
+    setUserId(initialCredentials?.userId?.toString() ?? "");
+  }, [initialCredentials]);
 
   const handleSave = async () => {
     if (!companyId || !userId || !password) return;
