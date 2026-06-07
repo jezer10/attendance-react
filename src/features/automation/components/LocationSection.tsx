@@ -95,7 +95,7 @@ const LocationSection = ({ address, lat, lng, radius, onLocationChange }: Locati
           />
         </div>
 
-        <div className="relative h-[220px] rounded-token overflow-hidden border border-black/5">
+        <div className="relative z-0 h-[220px] rounded-token overflow-hidden border border-black/5">
           <Suspense fallback={<div className="w-full h-full bg-neutral animate-pulse" />}>
             <LocationMap
               position={effectivePosition}
